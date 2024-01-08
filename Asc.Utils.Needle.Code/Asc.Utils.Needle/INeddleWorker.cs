@@ -1,11 +1,12 @@
 ﻿using System;
+using System.ComponentModel;
 
 namespace Asc.Utils.Needle;
 
 /// <summary>
 /// Best multithreading utility you will find!
 /// </summary>
-public interface INeddleWorker : IDisposable
+public interface INeddleWorker : INotifyPropertyChanged, IDisposable
 {
     /// <summary>
     /// You can use this inside your jobs to cancel while doing a certain job instead of wait to complete a previous one

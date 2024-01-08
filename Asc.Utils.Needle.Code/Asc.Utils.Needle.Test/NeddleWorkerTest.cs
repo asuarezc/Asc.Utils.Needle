@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 
 namespace Asc.Utils.Needle.Test;
@@ -249,6 +250,39 @@ public class NeddleWorkerTest
         stopwatch.Stop();
 
         Assert.True(stopwatch.ElapsedMilliseconds < 100);
+    }
+
+    [Fact]
+    public void NotifyPropertyChanged_Test()
+    {
+        string progressText;
+        string statusText;
+        INeddleWorker neddle = Pincushion.Instance.GetNeedle(1);
+
+        neddle.AddJob(() => Console.WriteLine($"Just testing {nameof(NotifyPropertyChanged_Test)}"));
+        neddle.AddJob(() => Console.WriteLine("Ignore this. Nothing to see"));
+        neddle.AddJob(() => Console.WriteLine("Told you. This is only testing"));
+        neddle.AddJob(() => Console.WriteLine("Ok, nevermind. Do what you want"));
+
+        neddle.PropertyChanged += (object sender, PropertyChangedEventArgs e) =>
+        {
+            if (e is null || string.IsNullOrEmpty(e.PropertyName))
+                return;
+
+            if (e.PropertyName == nameof(INeddleWorker.Progress))
+            {
+                progressText = $"{neddle.Progress}%";
+                Assert.True(progressText == "0%" || progressText == "25%" || progressText == "50%" || progressText == "75%" || progressText == "100%");
+            }
+
+            if (e.PropertyName == nameof(INeddleWorker.CompletedJobsCount))
+            {
+                statusText = $"Completed {neddle.CompletedJobsCount} of {neddle.TotalJobsCount} total jobs";
+                Assert.True(neddle.CompletedJobsCount == 0 || neddle.CompletedJobsCount == 1 || neddle.CompletedJobsCount == 2 || neddle.CompletedJobsCount == 3 || neddle.CompletedJobsCount == 4);
+            }
+        };
+
+        neddle.RunAsync().Wait();
     }
 
     [Fact]
