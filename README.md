@@ -17,7 +17,7 @@ Install-Package Asc.Utils.Needle
   neddleWorker.AddJob(async () => await DoSomethingAsync());
   
   if (someCondition)
-      neddleWorker.AddJob(() => { someResult = GetResult(); });
+    neddleWorker.AddJob(() => { someResult = GetResult(); });
   
   await neddleWorker.RunAsync();
 ```
@@ -32,7 +32,7 @@ Install-Package Asc.Utils.Needle
   neddleWorker.AddJob(async () => await DoSomethingAsync());
   
   if (someCondition)
-      neddleWorker.AddJob(() => { someResult = GetResult(); });
+    neddleWorker.AddJob(() => { someResult = GetResult(); });
 
   needleWorker.Completed += (object sender, EventArgs e) => needleWorker.Dispose();
   neddleWorker.BeginRun();
@@ -61,6 +61,32 @@ Install-Package Asc.Utils.Needle
   {
     logger.LogException(ex, "Unexpected error while INeddleWorker.RunAsync");
   }
+```
+
+### Check progress to update UI
+```C#
+  string progressText;
+  string statusText;
+  INeddleWorker neddleWorker = Pincushion.Instance.GetNeedle(1);
+  
+  neddleWorker.AddJob(Job1);
+  neddleWorker.AddJob(Job2);
+  neddleWorker.AddJob(Job3);
+  neddleWorker.AddJob(Job4);
+  
+  neddleWorker.PropertyChanged += (object sender, PropertyChangedEventArgs e) =>
+  {
+    if (e is null || string.IsNullOrEmpty(e.PropertyName))
+      return;
+  
+    if (e.PropertyName == nameof(INeddleWorker.Progress))
+      progressText = $"{neddleWorker.Progress}%";
+  
+    if (e.PropertyName == nameof(INeddleWorker.CompletedJobsCount))
+      statusText = $"Completed {neddleWorker.CompletedJobsCount} of {neddleWorker.TotalJobsCount} jobs";
+  };
+  
+  await neddleWorker.RunAsync();
 ```
 
 ### More info
