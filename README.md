@@ -39,3 +39,6 @@ Install-Package Asc.Utils.Needle
 
 ### More info
 See INeddleWorker interface to get more info about how to use this utility
+
+## Icon from Flaticon:
+<a href="https://www.flaticon.com/free-icons/sew" title="sew icons">Sew icons created by Pixel perfect - Flaticon</a>
