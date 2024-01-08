@@ -15,6 +15,7 @@
     <Copyright>MIT</Copyright>
     <PackageTags>Multithreading, Utility, Background Worker</PackageTags>
     <PackageIcon>needle.png</PackageIcon>
+    <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
