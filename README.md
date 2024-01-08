@@ -40,7 +40,10 @@ Install-Package Asc.Utils.Needle
 
 ### If some job fails
 ```C#
-  using INeddleWorker neddleWorker = Pincushion.Instance.GetNeedle(maxThreads: 2, cancelPendingJobsIfAnyOtherFails: false);
+  using INeddleWorker neddleWorker = Pincushion.Instance.GetNeedle(
+    maxThreads: 2,
+    cancelPendingJobsIfAnyOtherFails: false
+  );
 
   foreach(Action job in jobs)
     neddleWorker.AddJob(job);
