@@ -7,7 +7,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Asc.Utils.Needle</PackageId>
     <Title>Asc.Utils.Needle</Title>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Alberto Suárez Cánovas</Authors>
     <Company />
     <Product>Asc.Utils.Needle</Product>
@@ -16,7 +16,16 @@
     <PackageTags>Multithreading, Utility, Background Worker</PackageTags>
     <PackageIcon>needle.png</PackageIcon>
     <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>Fixed a bug wich causes to not be able of check por INeddleWorker progress due to a INotifyPropertyChanged missing reference</PackageReleaseNotes>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <None Update="needle.png">
