@@ -1,6 +1,4 @@
-﻿using System.ComponentModel;
-
-namespace Asc.Utils.Needle;
+﻿namespace Asc.Utils.Needle;
 
 /// <summary>
 /// The siempliest multithreading tool. Use 3 threads to run every job you need.

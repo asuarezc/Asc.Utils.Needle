@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Asc.Utils.Needle;
+﻿namespace Asc.Utils.Needle;
 
 /// <summary>
 /// In case you want some jobs to start before others do

@@ -19,10 +19,13 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
     private readonly List<Exception> exceptions = [];
     private readonly List<Task> tasks = [];
 
-    public event EventHandler<Exception>? JobFaulted;
-    public event EventHandler? Completed;
-    public event EventHandler? Canceled;
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    #region INeedleWorker implementation
+
+    public event EventHandler? Completed;
+    public event EventHandler<Exception>? JobFaulted;
+    public event EventHandler? Canceled;
 
     public CancellationToken CancellationToken
     {
@@ -93,7 +96,6 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
             return cancelPendingJobsIfAnyOtherFails;
         }
     }
-    
 
     public bool IsRunning
     {
@@ -108,17 +110,6 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
             isRunning = value;
             NotifyPropertyChanged(nameof(IsRunning));
         }
-    }
-
-    private string GetDebuggerDisplay()
-    {
-        return ToString();
-    }
-
-    public override string ToString()
-    {
-        ThrowIfDisposed();
-        return $"IsRunning = {IsRunning}, Progress = ({Progress}% completed {CompletedJobsCount} of {TotalJobsCount} jobs)";
     }
 
     public void AddJob(Action job, JobPriority priority = JobPriority.Medium)
@@ -143,6 +134,26 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
 
         taskJobs.Add(new Tuple<Func<Task>, JobPriority>(job, priority));
         TotalJobsCount++;
+    }
+
+    public void BeginRun()
+    {
+        ThrowIfDisposed();
+
+        if (actionJobs.Count == 0 && taskJobs.Count == 0)
+            throw new InvalidOperationException("Nothing to run");
+
+        Task.Run(RunAsync);
+    }
+
+    public void RequestCancellation()
+    {
+        ThrowIfDisposed();
+
+        if (!IsRunning)
+            throw new InvalidOperationException("Semaphore is not running. Operation cannot be canceled.");
+
+        cancellationTokenSource.Cancel();
     }
 
     public async Task RunAsync()
@@ -172,25 +183,7 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
         }
     }
 
-    public void BeginRun()
-    {
-        ThrowIfDisposed();
-
-        if (actionJobs.Count == 0 && taskJobs.Count == 0)
-            throw new InvalidOperationException("Nothing to run");
-
-        Task.Run(RunAsync);
-    }
-
-    public void RequestCancellation()
-    {
-        ThrowIfDisposed();
-
-        if (!IsRunning)
-            throw new InvalidOperationException("Semaphore is not running. Operation cannot be canceled.");
-
-        cancellationTokenSource.Cancel();
-    }
+    #endregion
 
     private void ThrowIfDisposed()
     {
@@ -302,6 +295,17 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
 
         TotalJobsCount = 0;
         CompletedJobsCount = 0;
+    }
+
+    private string GetDebuggerDisplay()
+    {
+        return ToString();
+    }
+
+    public override string ToString()
+    {
+        ThrowIfDisposed();
+        return $"IsRunning = {IsRunning}, Progress = ({Progress}% completed {CompletedJobsCount} of {TotalJobsCount} jobs)";
     }
 
     protected virtual void Dispose(bool disposing)

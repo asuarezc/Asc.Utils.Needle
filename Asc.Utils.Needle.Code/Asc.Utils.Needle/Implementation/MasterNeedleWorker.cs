@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class MasterNeedleWorker : IMasterNeedleWorker
+internal sealed class MasterNeedleWorker : IMasterNeedleWorker
 {
     #region Singleton stuff
 

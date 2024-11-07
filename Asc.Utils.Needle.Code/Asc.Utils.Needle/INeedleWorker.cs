@@ -1,5 +1,4 @@
-﻿using System;
-using System.ComponentModel;
+﻿using System.ComponentModel;
 
 namespace Asc.Utils.Needle;
 
@@ -8,6 +7,23 @@ namespace Asc.Utils.Needle;
 /// </summary>
 public interface INeedleWorker : INotifyPropertyChanged, IDisposable
 {
+    /// <summary>
+    /// Raised when all jobs have been completed (successfully or not). Remember to subscribe to this event only
+    /// if you haved decided to invoke BeginRun since RunAsync can be awaited
+    /// </summary>
+    event EventHandler Completed;
+
+    /// <summary>
+    /// Raised when a job fails. Remember to subscribe to this event only if you haved decided to invoke BeginRun
+    /// since RunAsync can be awaited and can throws AggregateException, which includes a collection of caught exceptions
+    /// </summary>
+    event EventHandler<Exception> JobFaulted;
+
+    /// <summary>
+    /// Raised when Run operation has been canceled
+    /// </summary>
+    event EventHandler Canceled;
+
     /// <summary>
     /// You can use this inside your jobs to cancel while doing a certain job instead of wait to complete a previous one
     /// </summary>
@@ -44,23 +60,6 @@ public interface INeedleWorker : INotifyPropertyChanged, IDisposable
     /// You can cancel pending jobs that are not currently in progress if "IsRunning" is true.
     /// </summary>
     bool IsRunning { get; }
-
-    /// <summary>
-    /// Raised when all jobs have been completed (successfully or not). Remember to subscribe to this event only
-    /// if you haved decided to invoke BeginRun since RunAsync can be awaited
-    /// </summary>
-    event EventHandler Completed;
-
-    /// <summary>
-    /// Raised when a job fails. Remember to subscribe to this event only if you haved decided to invoke BeginRun
-    /// since RunAsync can be awaited and can throws AggregateException, which includes a collection of caught exceptions
-    /// </summary>
-    event EventHandler<Exception> JobFaulted;
-
-    /// <summary>
-    /// Raised when Run operation has been canceled
-    /// </summary>
-    event EventHandler Canceled;
 
     /// <summary>
     /// Adds a synchronous job.
