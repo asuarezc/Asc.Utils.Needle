@@ -19,6 +19,7 @@ internal class MasterNeddleWorker : IMasterNeddleWorker
 
     #endregion
 
+    private static readonly ReaderWriterLockSlim locker = new();
     private readonly SemaphoreSlim semaphore = new(3);
     private readonly ConcurrentBag<Task> tasks = [];
     private Task? runTask = null;
@@ -27,21 +28,48 @@ internal class MasterNeddleWorker : IMasterNeddleWorker
     public event EventHandler<Exception>? JobFaulted;
 
     public int CurrentJobsStackSize => tasks.Count;
+
     public bool IsRunning => runTask != null && runTask.Status == TaskStatus.Running;
 
     public async Task AddJobAsync(Action job)
+    {
+        await AddJobAsyncInternal(job);
+
+        if (IsRunning)
+            return;
+
+        BeginRun();
+    }
+
+    public async Task AddJobAsync(Func<Task> job)
+    {
+        await AddJobAsyncInternal(job);
+
+        if (IsRunning)
+            return;
+
+        BeginRun();
+    }
+
+    public async Task AddJobAsyncInternal(object job)
     {
         ArgumentNullException.ThrowIfNull(nameof(job));
 
         await semaphore.WaitAsync();
 
-        tasks.Add(Task.Run(() =>
+        tasks.Add(Task.Run(async () =>
         {
             bool wasSuccess = true;
 
             try
             {
-                job();
+                if (job is Func<Task> asyncJob)
+                    await asyncJob();
+                else
+                {
+                    Action syncJob = (Action)job;
+                    syncJob();
+                }
             }
             catch (Exception ex)
             {
@@ -56,45 +84,6 @@ internal class MasterNeddleWorker : IMasterNeddleWorker
                 semaphore.Release();
             }
         }));
-
-        if (IsRunning)
-            return;
-
-        BeginRun();
-    }
-
-    public async Task AddJobAsync(Func<Task> job)
-    {
-        ArgumentNullException.ThrowIfNull(nameof(job));
-
-        await semaphore.WaitAsync();
-
-        tasks.Add(Task.Run(async () =>
-        {
-            bool wasSuccess = true;
-
-            try
-            {
-                await job();
-            }
-            catch (Exception ex)
-            {
-                wasSuccess |= false;
-                JobFaulted?.Invoke(this, ex);
-            }
-            finally
-            {
-                if (wasSuccess)
-                    JobCompleted?.Invoke(this, EventArgs.Empty);
-
-                semaphore.Release();
-            }
-        }));
-
-        if (IsRunning)
-            return;
-
-        BeginRun();
     }
 
     public override string ToString()

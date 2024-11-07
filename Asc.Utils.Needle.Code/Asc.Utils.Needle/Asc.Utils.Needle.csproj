@@ -7,7 +7,7 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Asc.Utils.Needle</PackageId>
     <Title>Asc.Utils.Needle</Title>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <Authors>Alberto Suárez Cánovas</Authors>
     <Company />
     <Product>Asc.Utils.Needle</Product>
@@ -17,7 +17,7 @@
     <PackageIcon>needle.png</PackageIcon>
     <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Added an even simplier way to add jobs with IMasterNeddleWorker singleton instance. Try it!</PackageReleaseNotes>
+    <PackageReleaseNotes>Minor refactor and better tests</PackageReleaseNotes>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\README.md">
