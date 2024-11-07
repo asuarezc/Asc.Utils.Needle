@@ -15,11 +15,29 @@ public sealed class Pincushion : IPincushion
 
     public IMasterNeedleWorker MasterNeedle => MasterNeedleWorker.Instance;
 
-    public INeedleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true)
+    public INeedleWorker GetNeedle(int maxThreads, bool cancelPendingJobsIfAnyOtherFails)
     {
         if (maxThreads <= 0)
             throw new ArgumentException($"Param \"{nameof(maxThreads)}\" must be greater than zero.");
 
         return new NeedleWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
+    }
+
+    public INeedleWorker GetNeedle(int maxThreads)
+    {
+        if (maxThreads <= 0)
+            throw new ArgumentException($"Param \"{nameof(maxThreads)}\" must be greater than zero.");
+
+        return new NeedleWorker(maxThreads);
+    }
+
+    public INeedleWorker GetNeedle(bool cancelPendingJobsIfAnyOtherFails)
+    {
+        return new NeedleWorker(cancelPendingJobsIfAnyOtherFails);
+    }
+
+    public INeedleWorker GetNeedle()
+    {
+        return new NeedleWorker();
     }
 }

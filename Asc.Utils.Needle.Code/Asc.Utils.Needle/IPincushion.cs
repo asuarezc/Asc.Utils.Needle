@@ -12,7 +12,13 @@ public interface IPincushion
     /// <param name="cancelPendingJobsIfAnyOtherFails">If true and a job fails, any other not running and pending jobs will be canceled.</param>
     /// <returns>A new INeedleWorker instance. This pincushion size is infinite!</returns>
     /// <exception cref="ArgumentException">If <paramref name="maxThreads"/> value is equals or lower than zero.</exception>
-    INeedleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true);
+    INeedleWorker GetNeedle(int maxThreads, bool cancelPendingJobsIfAnyOtherFails);
+
+    INeedleWorker GetNeedle(int maxThreads);
+
+    INeedleWorker GetNeedle(bool cancelPendingJobsIfAnyOtherFails);
+
+    INeedleWorker GetNeedle();
 
     /// <summary>
     /// Brings you access to the master needle worker singleton instance.

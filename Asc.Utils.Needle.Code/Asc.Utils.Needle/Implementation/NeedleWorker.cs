@@ -4,13 +4,14 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true) : INeedleWorker
+internal class NeedleWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails = true) : INeedleWorker
 {
     private bool disposedValue;
     private bool isRunning;
     private int totalJobsCount;
     private int completedJobsCount;
 
+    private static readonly object lockObject = new();
     private readonly SemaphoreSlim semaphore = new(maxThreads);
     private CancellationTokenSource cancellationTokenSource = new();
 
@@ -20,6 +21,8 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
     private readonly List<Task> tasks = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    public NeedleWorker(bool cancelPendingJobsIfAnyOtherFails = true) : this(Environment.ProcessorCount, cancelPendingJobsIfAnyOtherFails) { }
 
     #region INeedleWorker implementation
 
@@ -237,7 +240,9 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
                 }
 
                 job();
-                CompletedJobsCount++;
+
+                lock (lockObject)
+                    CompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -263,7 +268,9 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
                 }
 
                 await job();
-                CompletedJobsCount++;
+
+                lock (lockObject)
+                    CompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -278,12 +285,14 @@ internal class NeedleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
 
     private void ManageException(Exception ex)
     {
-        exceptions.Add(ex);
-
         if (!CancellationToken.IsCancellationRequested && CancelPendingJobsIfAnyOtherFails)
             cancellationTokenSource.Cancel();
 
-        JobFaulted?.Invoke(this, ex);
+        lock (lockObject)
+        {
+            exceptions.Add(ex);
+            JobFaulted?.Invoke(this, ex);
+        }
     }
 
     private void ClearWorkCollections()

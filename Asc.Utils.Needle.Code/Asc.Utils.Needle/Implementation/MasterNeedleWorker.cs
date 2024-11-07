@@ -20,7 +20,7 @@ internal sealed class MasterNeedleWorker : IMasterNeedleWorker
     #endregion
 
     private static readonly ReaderWriterLockSlim locker = new();
-    private readonly SemaphoreSlim semaphore = new(3);
+    private readonly SemaphoreSlim semaphore = new(Environment.ProcessorCount);
     private readonly ConcurrentBag<Task> tasks = [];
     private Task? runTask = null;
 

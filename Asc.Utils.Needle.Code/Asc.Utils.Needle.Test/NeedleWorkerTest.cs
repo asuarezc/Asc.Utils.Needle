@@ -9,7 +9,7 @@ public class NeedleWorkerTest
     public void MaxThreadsProperty_DefaultValue()
     {
         INeedleWorker needle = Pincushion.Instance.GetNeedle();
-        Assert.Equal(3, needle.MaxThreads);
+        Assert.Equal(Environment.ProcessorCount, needle.MaxThreads);
 
         needle.Dispose();
     }
