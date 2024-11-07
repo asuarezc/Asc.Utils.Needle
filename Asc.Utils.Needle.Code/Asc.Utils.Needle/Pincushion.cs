@@ -1,4 +1,4 @@
-﻿using System;
+﻿using Asc.Utils.Needle.Implementation;
 
 namespace Asc.Utils.Needle;
 
@@ -13,11 +13,13 @@ public sealed class Pincushion : IPincushion
 
     public static IPincushion Instance => lazyInstance.Value;
 
+    public IMasterNeddleWorker MasterNeddle => MasterNeddleWorker.Instance;
+
     public INeddleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true)
     {
         if (maxThreads <= 0)
             throw new ArgumentException($"Param \"{nameof(maxThreads)}\" must be greater than zero.");
 
-        return new Implementation.NeddleWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
+        return new NeddleWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
     }
 }

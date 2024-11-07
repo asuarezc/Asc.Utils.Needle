@@ -1,5 +1,3 @@
-using System;
-
 namespace Asc.Utils.Needle.Test;
 
 public class PincushionTest
@@ -38,5 +36,11 @@ public class PincushionTest
     public void GetNeedle_WhenYourWantToShowThatYouKnowWhatYouWant()
     {
         Assert.NotNull(Pincushion.Instance.GetNeedle(maxThreads: 2, cancelPendingJobsIfAnyOtherFails: false));
+    }
+
+    [Fact]
+    public void MasterNeddle_NotNull()
+    {
+        Assert.NotNull(Pincushion.Instance.MasterNeddle);
     }
 }

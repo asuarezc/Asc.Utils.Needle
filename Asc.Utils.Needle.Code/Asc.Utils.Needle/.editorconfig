@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# CS8612: La nulabilidad de los tipos de referencia del tipo no coincide con el miembro implementado de forma implícita
+dotnet_diagnostic.CS8612.severity = silent

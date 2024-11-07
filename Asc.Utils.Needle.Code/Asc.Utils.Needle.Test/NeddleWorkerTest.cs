@@ -140,7 +140,7 @@ public class NeddleWorkerTest
     {
         INeddleWorker neddle = Pincushion.Instance.GetNeedle(1);
 
-        neddle.Completed += (object sender, EventArgs e) => Assert.True(true);
+        neddle.Completed += (object? sender, EventArgs e) => Assert.True(true);
 
         neddle.AddJob(() => Console.WriteLine($"Just testing {nameof(Completed)}"));
         neddle.RunAsync().Wait();
@@ -152,7 +152,7 @@ public class NeddleWorkerTest
         INeddleWorker neddle = Pincushion.Instance.GetNeedle(1);
         bool faulted = false;
 
-        neddle.JobFaulted += (object sender, Exception ex) => { faulted = true; };
+        neddle.JobFaulted += (object? sender, Exception ex) => { faulted = true; };
         neddle.AddJob(() => throw new NotImplementedException());
 
         Assert.Throws<AggregateException>(() => neddle.RunAsync().Wait());
@@ -165,7 +165,7 @@ public class NeddleWorkerTest
         INeddleWorker neddle = Pincushion.Instance.GetNeedle(1);
         bool canceled = false;
 
-        neddle.Canceled += (object sender, EventArgs e) => { canceled = true; };
+        neddle.Canceled += (object? sender, EventArgs e) => { canceled = true; };
         neddle.AddJob(neddle.RequestCancellation, JobPriority.Highest);
         neddle.AddJob(() => { canceled = false; }, JobPriority.Lowest);
         neddle.RunAsync().Wait();
@@ -179,7 +179,7 @@ public class NeddleWorkerTest
         INeddleWorker neddle = Pincushion.Instance.GetNeedle(1);
         bool completed = false;
 
-        neddle.Completed += (object sender, EventArgs e) => { completed = true; };
+        neddle.Completed += (object? sender, EventArgs e) => { completed = true; };
         neddle.AddJob(() => Console.WriteLine($"Just testing {nameof(BeginRung)}"));
         neddle.BeginRun();
         Task.Delay(100).Wait();
@@ -262,7 +262,7 @@ public class NeddleWorkerTest
         neddle.AddJob(() => Console.WriteLine("Told you. This is only testing"));
         neddle.AddJob(() => Console.WriteLine("Ok, nevermind. Do what you want"));
 
-        neddle.PropertyChanged += (object sender, PropertyChangedEventArgs e) =>
+        neddle.PropertyChanged += (object? sender, PropertyChangedEventArgs e) =>
         {
             if (e is null || string.IsNullOrEmpty(e.PropertyName))
                 return;

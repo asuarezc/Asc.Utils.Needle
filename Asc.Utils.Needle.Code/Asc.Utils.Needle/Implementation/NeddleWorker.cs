@@ -1,23 +1,28 @@
-﻿using System;
-using System.ComponentModel;
+﻿using System.ComponentModel;
+using System.Diagnostics;
 
 namespace Asc.Utils.Needle.Implementation;
 
+[DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 internal class NeddleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true) : INeddleWorker
 {
     private bool disposedValue;
     private bool isRunning;
     private int totalJobsCount;
     private int completedJobsCount;
-    private string DebugDisplay => ToString();
 
     private readonly SemaphoreSlim semaphore = new(maxThreads);
     private CancellationTokenSource cancellationTokenSource = new();
 
-    private List<Tuple<Action, JobPriority>> actionJobs = [];
-    private List<Tuple<Func<Task>, JobPriority>> taskJobs = [];
-    private List<Exception> exceptions = [];
-    private List<Task> tasks = [];
+    private readonly List<Tuple<Action, JobPriority>> actionJobs = [];
+    private readonly List<Tuple<Func<Task>, JobPriority>> taskJobs = [];
+    private readonly List<Exception> exceptions = [];
+    private readonly List<Task> tasks = [];
+
+    public event EventHandler<Exception>? JobFaulted;
+    public event EventHandler? Completed;
+    public event EventHandler? Canceled;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     public CancellationToken CancellationToken
     {
@@ -105,17 +110,16 @@ internal class NeddleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
         }
     }
 
-    public event EventHandler<Exception> JobFaulted;
-    public event EventHandler Completed;
-    public event EventHandler Canceled;
-    public event PropertyChangedEventHandler PropertyChanged;
+    private string GetDebuggerDisplay()
+    {
+        return ToString();
+    }
 
     public override string ToString()
     {
         ThrowIfDisposed();
         return $"IsRunning = {IsRunning}, Progress = ({Progress}% completed {CompletedJobsCount} of {TotalJobsCount} jobs)";
     }
-        
 
     public void AddJob(Action job, JobPriority priority = JobPriority.Medium)
     {
@@ -215,10 +219,10 @@ internal class NeddleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
         {
             await semaphore.WaitAsync();
 
-            if (job.Item1 is Action)
-                AddJobActionToSemaphore(job.Item1 as Action);
+            if (job.Item1 is Action action)
+                AddJobActionToSemaphore(action);
             else
-                AddJobTaskToSemaphore(job.Item1 as Func<Task>);
+                AddJobTaskToSemaphore((Func<Task>)job.Item1);
         }
 
         await Task.WhenAll(tasks);
@@ -315,16 +319,6 @@ internal class NeddleWorker(int maxThreads = 3, bool cancelPendingJobsIfAnyOther
         }
 
         ClearWorkCollections();
-
-        actionJobs = null;
-        taskJobs = null;
-        exceptions = null;
-        tasks = null;
-
-        JobFaulted = null;
-        Completed = null;
-        Canceled = null;
-
         disposedValue = true;
     }
 

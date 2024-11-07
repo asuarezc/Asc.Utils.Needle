@@ -5,8 +5,34 @@ Utility to simplify multithreading background operations
 ```sh
 Install-Package Asc.Utils.Needle
 ```
+## IMasterNeddleWorker Usage
+### Simply add jobs. That's all! But remember: Handling exceptions in that jobs is your responsibility
+```C#
+  private async Task DoTheWorkAsync(IEnumerable<string> urls)
+  {
+    foreach (string url in urls)
+      await Pincushion.Instance.MasterNeddle.AddJobAsync(() => DoHttpRequest(url));
+  }
 
-## Usage
+  private void DoHttpRequest(string url)
+  {
+    try
+    {
+      DoHttpRequestInternal(url);
+    }
+    catch (Exception ex)
+    {
+      ManageException(ex);
+    }
+  }
+
+  private void DoHttpRequestInternal(string url)
+  {
+    //... Your http request code ...
+  }
+```
+
+## INeddleWorker Usage
 ### With using statement
 ```C#
   IResult someResult = null;
@@ -90,7 +116,7 @@ Install-Package Asc.Utils.Needle
 ```
 
 ### More info
-See INeddleWorker interface to get more info about how to use this utility
+See INeddleWorker and IMasterNeddleWorker interfaces to get more info about how to use this utility
 
 ## Icon from Flaticon:
 <a href="https://www.flaticon.com/free-icons/sew" title="sew icons">Sew icons created by Pixel perfect - Flaticon</a>

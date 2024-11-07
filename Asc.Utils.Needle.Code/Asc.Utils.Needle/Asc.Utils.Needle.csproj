@@ -1,13 +1,13 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
+	<PackageLicenseExpression>MIT</PackageLicenseExpression>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <PackageId>Asc.Utils.Needle</PackageId>
     <Title>Asc.Utils.Needle</Title>
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Authors>Alberto Suárez Cánovas</Authors>
     <Company />
     <Product>Asc.Utils.Needle</Product>
@@ -17,21 +17,19 @@
     <PackageIcon>needle.png</PackageIcon>
     <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>Fixed a bug wich causes to not be able of check por INeddleWorker progress due to a INotifyPropertyChanged missing reference</PackageReleaseNotes>
+    <PackageReleaseNotes>Added an even simplier way to add jobs with IMasterNeddleWorker singleton instance. Try it!</PackageReleaseNotes>
   </PropertyGroup>
-
   <ItemGroup>
     <None Include="..\..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
-
+	
   <ItemGroup>
     <None Update="needle.png">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
-
 </Project>
