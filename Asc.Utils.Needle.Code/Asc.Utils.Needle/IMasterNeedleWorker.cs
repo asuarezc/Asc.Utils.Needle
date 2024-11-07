@@ -4,12 +4,12 @@ namespace Asc.Utils.Needle;
 
 /// <summary>
 /// The siempliest multithreading tool. Use 3 threads to run every job you need.
-/// Works like INeddleWorker but you cannot dispose this instance.
+/// Works like INeedleWorker but you cannot dispose this instance.
 /// Jobs are executed when they are added, if there are available threads.
 /// Otherwise they remain in a queue waiting for an available thread.
 /// So it has a FIFO behavior. It is threadsafe.
 /// </summary>
-public interface IMasterNeddleWorker
+public interface IMasterNeedleWorker
 {
     /// <summary>
     /// Adds a synchronous job.
@@ -31,7 +31,7 @@ public interface IMasterNeddleWorker
     int CurrentJobsStackSize { get; }
 
     /// <summary>
-    /// Tells you if master neddle worker is running.
+    /// Tells you if master needle worker is running.
     /// </summary>
     bool IsRunning { get; }
 

@@ -13,13 +13,13 @@ public sealed class Pincushion : IPincushion
 
     public static IPincushion Instance => lazyInstance.Value;
 
-    public IMasterNeddleWorker MasterNeddle => MasterNeddleWorker.Instance;
+    public IMasterNeedleWorker MasterNeedle => MasterNeedleWorker.Instance;
 
-    public INeddleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true)
+    public INeedleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true)
     {
         if (maxThreads <= 0)
             throw new ArgumentException($"Param \"{nameof(maxThreads)}\" must be greater than zero.");
 
-        return new NeddleWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
+        return new NeedleWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
     }
 }

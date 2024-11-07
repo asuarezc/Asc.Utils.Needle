@@ -6,16 +6,16 @@
 public interface IPincushion
 {
     /// <summary>
-    /// Psss! This method gives you a new INeddleWorker instance. Do not forget to dispose the instance when all your jobs are done.
+    /// Psss! This method gives you a new INeedleWorker instance. Do not forget to dispose the instance when all your jobs are done.
     /// </summary>
     /// <param name="maxThreads">Maximum threads to run all your jobs</param>
     /// <param name="cancelPendingJobsIfAnyOtherFails">If true and a job fails, any other not running and pending jobs will be canceled.</param>
-    /// <returns>A new INeddleWorker instance. This pincushion size is infinite!</returns>
+    /// <returns>A new INeedleWorker instance. This pincushion size is infinite!</returns>
     /// <exception cref="ArgumentException">If <paramref name="maxThreads"/> value is equals or lower than zero.</exception>
-    INeddleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true);
+    INeedleWorker GetNeedle(int maxThreads = 3, bool cancelPendingJobsIfAnyOtherFails = true);
 
     /// <summary>
-    /// Brings you access to the master neddle worker singleton instance.
+    /// Brings you access to the master needle worker singleton instance.
     /// </summary>
-    IMasterNeddleWorker MasterNeddle { get; }
+    IMasterNeedleWorker MasterNeedle { get; }
 }

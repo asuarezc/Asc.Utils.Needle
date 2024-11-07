@@ -4,18 +4,18 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class MasterNeddleWorker : IMasterNeddleWorker
+internal class MasterNeedleWorker : IMasterNeedleWorker
 {
     #region Singleton stuff
 
-    private MasterNeddleWorker() { }
+    private MasterNeedleWorker() { }
 
-    private static readonly Lazy<IMasterNeddleWorker> lazyInstance = new(
-        () => new MasterNeddleWorker(),
+    private static readonly Lazy<IMasterNeedleWorker> lazyInstance = new(
+        () => new MasterNeedleWorker(),
         LazyThreadSafetyMode.PublicationOnly
     );
 
-    public static IMasterNeddleWorker Instance => lazyInstance.Value;
+    public static IMasterNeedleWorker Instance => lazyInstance.Value;
 
     #endregion
 

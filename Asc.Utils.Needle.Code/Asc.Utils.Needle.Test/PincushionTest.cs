@@ -39,8 +39,8 @@ public class PincushionTest
     }
 
     [Fact]
-    public void MasterNeddle_NotNull()
+    public void MasterNeedle_NotNull()
     {
-        Assert.NotNull(Pincushion.Instance.MasterNeddle);
+        Assert.NotNull(Pincushion.Instance.MasterNeedle);
     }
 }
