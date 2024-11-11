@@ -5,7 +5,7 @@ namespace Asc.Utils.Needle;
 /// <summary>
 /// Best multithreading utility you will find!
 /// </summary>
-public interface INeedleWorker : INotifyPropertyChanged, IDisposable
+public interface ISemaphoreWorker : INotifyPropertyChanged, IDisposable
 {
     /// <summary>
     /// Raised when all jobs have been completed (successfully or not). Remember to subscribe to this event only

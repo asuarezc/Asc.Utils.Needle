@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class NeedleWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails = true) : INeedleWorker
+internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails = true) : ISemaphoreWorker
 {
     private bool disposedValue;
     private bool isRunning;
@@ -22,7 +22,8 @@ internal class NeedleWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFail
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public NeedleWorker(bool cancelPendingJobsIfAnyOtherFails = true) : this(Environment.ProcessorCount, cancelPendingJobsIfAnyOtherFails) { }
+    public SemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails = true)
+        : this(Environment.ProcessorCount / 2, cancelPendingJobsIfAnyOtherFails) { }
 
     #region INeedleWorker implementation
 
@@ -211,7 +212,7 @@ internal class NeedleWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFail
         if (jobs.Count == 0)
             throw new InvalidOperationException("Nothing to run");
 
-        foreach (Tuple<object, JobPriority> job in jobs.OrderBy(it => (int)it.Item2))
+        foreach (Tuple<object, JobPriority> job in jobs.OrderBy(it => (int)it.Item2)) //Order by priority
         {
             await semaphore.WaitAsync();
 
@@ -306,10 +307,7 @@ internal class NeedleWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFail
         CompletedJobsCount = 0;
     }
 
-    private string GetDebuggerDisplay()
-    {
-        return ToString();
-    }
+    private string GetDebuggerDisplay() => ToString();
 
     public override string ToString()
     {

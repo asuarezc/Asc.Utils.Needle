@@ -1,13 +1,13 @@
 ﻿namespace Asc.Utils.Needle;
 
 /// <summary>
-/// The siempliest multithreading tool. Use {Environment.ProcessorCount} threads to run every job you need.
+/// The siempliest multithreading tool. Use {Environment.ProcessorCount / 2} threads to run every job you need.
 /// Works like INeedleWorker but you cannot dispose this instance.
 /// Jobs are executed when they are added, if there are available threads.
 /// Otherwise they remain in a queue waiting for an available thread.
 /// So it has a FIFO behavior. It is threadsafe.
 /// </summary>
-public interface IMasterNeedleWorker
+public interface IBackgroundSemaphoreWorker
 {
     /// <summary>
     /// Adds a synchronous job.

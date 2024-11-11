@@ -1,9 +1,11 @@
-﻿namespace Asc.Utils.Needle
+﻿using System.ComponentModel;
+
+namespace Asc.Utils.Needle
 {
     /// <summary>
     /// Works like INeedleWorker but starting all jobs at same time. One thread per job.
     /// </summary>
-    public interface IParallelNeedleWorker : IDisposable
+    public interface IParallelWorker : INotifyPropertyChanged, IDisposable
     {
         /// <summary>
         /// Raised when all jobs have been completed (successfully or not). Remember to subscribe to this event only
@@ -26,11 +28,6 @@
         /// You can use this inside your jobs to cancel while doing a certain job instead of wait to complete a previous one
         /// </summary>
         CancellationToken CancellationToken { get; }
-
-        /// <summary>
-        /// Maximum threads to do the jobs
-        /// </summary>
-        int MaxThreads { get; }
 
         /// <summary>
         /// Number of total added jobs

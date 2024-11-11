@@ -4,23 +4,23 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal sealed class MasterNeedleWorker : IMasterNeedleWorker
+internal sealed class MainBackgroundWorker : IBackgroundSemaphoreWorker
 {
     #region Singleton stuff
 
-    private MasterNeedleWorker() { }
+    private MainBackgroundWorker() { }
 
-    private static readonly Lazy<IMasterNeedleWorker> lazyInstance = new(
-        () => new MasterNeedleWorker(),
+    private static readonly Lazy<IBackgroundSemaphoreWorker> lazyInstance = new(
+        () => new MainBackgroundWorker(),
         LazyThreadSafetyMode.PublicationOnly
     );
 
-    public static IMasterNeedleWorker Instance => lazyInstance.Value;
+    public static IBackgroundSemaphoreWorker Instance => lazyInstance.Value;
 
     #endregion
 
     private static readonly ReaderWriterLockSlim locker = new();
-    private readonly SemaphoreSlim semaphore = new(Environment.ProcessorCount);
+    private readonly SemaphoreSlim semaphore = new(Environment.ProcessorCount / 2);
     private readonly ConcurrentBag<Task> tasks = [];
     private Task? runTask = null;
 
