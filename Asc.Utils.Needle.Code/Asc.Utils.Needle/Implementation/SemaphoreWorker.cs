@@ -11,7 +11,6 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
     private int totalJobsCount;
     private int completedJobsCount;
 
-    private static readonly object lockObject = new();
     private readonly SemaphoreSlim semaphore = new(maxThreads);
     private CancellationTokenSource cancellationTokenSource = new();
 
@@ -23,7 +22,7 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public SemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails = true)
-        : this(Environment.ProcessorCount / 2, cancelPendingJobsIfAnyOtherFails) { }
+        : this(Environment.ProcessorCount, cancelPendingJobsIfAnyOtherFails) { }
 
     #region INeedleWorker implementation
 
@@ -241,9 +240,7 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
                 }
 
                 job();
-
-                lock (lockObject)
-                    CompletedJobsCount++;
+                CompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -269,9 +266,7 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
                 }
 
                 await job();
-
-                lock (lockObject)
-                    CompletedJobsCount++;
+                CompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -289,11 +284,8 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
         if (!CancellationToken.IsCancellationRequested && CancelPendingJobsIfAnyOtherFails)
             cancellationTokenSource.Cancel();
 
-        lock (lockObject)
-        {
-            exceptions.Add(ex);
-            JobFaulted?.Invoke(this, ex);
-        }
+        exceptions.Add(ex);
+        JobFaulted?.Invoke(this, ex);
     }
 
     private void ClearWorkCollections()

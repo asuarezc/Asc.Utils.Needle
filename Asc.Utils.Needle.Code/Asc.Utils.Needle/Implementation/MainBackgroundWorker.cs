@@ -20,7 +20,7 @@ internal sealed class MainBackgroundWorker : IBackgroundSemaphoreWorker
     #endregion
 
     private static readonly ReaderWriterLockSlim locker = new();
-    private readonly SemaphoreSlim semaphore = new(Environment.ProcessorCount / 2);
+    private readonly SemaphoreSlim semaphore = new(Environment.ProcessorCount);
     private readonly ConcurrentBag<Task> tasks = [];
     private Task? runTask = null;
 

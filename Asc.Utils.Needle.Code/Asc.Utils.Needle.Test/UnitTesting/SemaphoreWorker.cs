@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 
-namespace Asc.Utils.Needle.Test;
+namespace Asc.Utils.Needle.Test.UnitTesting;
 
 public class SemaphoreWorker
 {
@@ -64,7 +64,8 @@ public class SemaphoreWorker
             JobPriority.Highest
         );
 
-        worker.AddJob(async () => {
+        worker.AddJob(async () =>
+        {
             await Task.Delay(100);
             Assert.Equal(1, worker.CompletedJobsCount);
             await Task.Delay(100);
@@ -93,7 +94,8 @@ public class SemaphoreWorker
             JobPriority.Highest
         );
 
-        worker.AddJob(async () => {
+        worker.AddJob(async () =>
+        {
             await Task.Delay(100);
             Assert.Equal(50, worker.Progress);
             await Task.Delay(100);
@@ -131,7 +133,8 @@ public class SemaphoreWorker
             JobPriority.Highest
         );
 
-        worker.AddJob(async () => {
+        worker.AddJob(async () =>
+        {
             await Task.Delay(100);
             Assert.True(worker.IsRunning);
             await Task.Delay(100);
