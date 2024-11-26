@@ -4,47 +4,52 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails = true) : ISemaphoreWorker
+internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 {
-    private bool disposedValue;
-    private bool isRunning;
-    private int totalJobsCount;
-    private int completedJobsCount;
+    private bool isRunning = false;
+    private int totalJobsCount = 0;
+    private int successfullyCompletedJobsCount = 0;
+    private int faultedJobsCount = 0;
 
-    private readonly SemaphoreSlim semaphore = new(maxThreads);
-    private CancellationTokenSource cancellationTokenSource = new();
+    private readonly ReaderWriterLockSlim locker = new(LockRecursionPolicy.NoRecursion);
 
-    private readonly List<Tuple<Action, JobPriority>> actionJobs = [];
-    private readonly List<Tuple<Func<Task>, JobPriority>> taskJobs = [];
-    private readonly List<Exception> exceptions = [];
-    private readonly List<Task> tasks = [];
+    public SemaphoreWorker()
+        : base() { }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
+    public SemaphoreWorker(int numberOfThreads)
+        : base(numberOfThreads) { }
 
-    public SemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails = true)
-        : this(Environment.ProcessorCount, cancelPendingJobsIfAnyOtherFails) { }
+    public SemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails)
+        : base(cancelPendingJobsIfAnyOtherFails) { }
+
+    public SemaphoreWorker(int numberOfThreads, bool cancelPendingJobsIfAnyOtherFails)
+        : base(numberOfThreads, cancelPendingJobsIfAnyOtherFails) { }
 
     #region INeedleWorker implementation
 
     public event EventHandler? Completed;
     public event EventHandler<Exception>? JobFaulted;
-    public event EventHandler? Canceled;
+    public event PropertyChangedEventHandler? PropertyChanged;
 
-    public CancellationToken CancellationToken
+    public bool IsRunning
     {
         get
         {
             ThrowIfDisposed();
-            return cancellationTokenSource.Token;
+
+            locker.EnterReadLock();
+            try { return isRunning; }
+            finally { locker.ExitReadLock(); }
         }
-    }
-
-    public int MaxThreads
-    {
-        get
+        private set
         {
             ThrowIfDisposed();
-            return maxThreads;
+
+            locker.EnterWriteLock();
+            try { isRunning = value; }
+            finally { locker.ExitWriteLock(); }
+
+            NotifyPropertyChanged(nameof(IsRunning));
         }
     }
 
@@ -53,118 +58,85 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
         get
         {
             ThrowIfDisposed();
-            return totalJobsCount;
+
+            locker.EnterReadLock();
+            try { return totalJobsCount; }
+            finally { locker.ExitReadLock(); }
         }
         private set
         {
             ThrowIfDisposed();
-            totalJobsCount = value;
+
+            locker.EnterWriteLock();
+            try { totalJobsCount = value; }
+            finally { locker.ExitWriteLock(); }
+
             NotifyPropertyChanged(nameof(TotalJobsCount));
-            NotifyPropertyChanged(nameof(Progress));
         }
     }
 
-    public int CompletedJobsCount
+    public int SuccessfullyCompletedJobsCount
     {
         get
         {
             ThrowIfDisposed();
-            return completedJobsCount;
+
+            locker.EnterReadLock();
+            try { return successfullyCompletedJobsCount; }
+            finally { locker.ExitReadLock(); }
         }
         private set
         {
             ThrowIfDisposed();
-            completedJobsCount = value;
-            NotifyPropertyChanged(nameof(CompletedJobsCount));
-            NotifyPropertyChanged(nameof(Progress));
+
+            locker.EnterWriteLock();
+            try { successfullyCompletedJobsCount = value; }
+            finally { locker.ExitWriteLock(); }
+
+            NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
         }
     }
 
-    public int Progress
+    public int FaultedJobsCount
     {
         get
         {
             ThrowIfDisposed();
-            return TotalJobsCount > 0
-                ? completedJobsCount * 100 / TotalJobsCount
-                : 0;
-        }
-    }
 
-    public bool CancelPendingJobsIfAnyOtherFails
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return cancelPendingJobsIfAnyOtherFails;
-        }
-    }
-
-    public bool IsRunning
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return isRunning;
+            locker.EnterReadLock();
+            try { return faultedJobsCount; }
+            finally { locker.ExitReadLock(); }
         }
         private set
         {
             ThrowIfDisposed();
-            isRunning = value;
-            NotifyPropertyChanged(nameof(IsRunning));
+
+            locker.EnterWriteLock();
+            try { faultedJobsCount = value; }
+            finally { locker.ExitWriteLock(); }
+
+            NotifyPropertyChanged(nameof(FaultedJobsCount));
         }
-    }
-
-    public void AddJob(Action job, JobPriority priority = JobPriority.Medium)
-    {
-        ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(job);
-
-        if (IsRunning)
-            throw new InvalidOperationException("Cannot add jobs while running");
-
-        actionJobs.Add(new Tuple<Action, JobPriority>(job, priority));
-        TotalJobsCount++;
-    }
-
-    public void AddJob(Func<Task> job, JobPriority priority = JobPriority.Medium)
-    {
-        ThrowIfDisposed();
-        ArgumentNullException.ThrowIfNull(job);
-
-        if (IsRunning)
-            throw new InvalidOperationException("Cannot add jobs while running");
-
-        taskJobs.Add(new Tuple<Func<Task>, JobPriority>(job, priority));
-        TotalJobsCount++;
     }
 
     public void BeginRun()
     {
         ThrowIfDisposed();
-
-        if (actionJobs.Count == 0 && taskJobs.Count == 0)
-            throw new InvalidOperationException("Nothing to run");
+        ThrowIfRunning();
+        ThrowIfThereIsNoJobsToRun();
 
         Task.Run(RunAsync);
     }
 
-    public void RequestCancellation()
+    #endregion
+
+    #region Overrides
+
+    public override async Task RunAsync()
     {
         ThrowIfDisposed();
-
-        if (!IsRunning)
-            throw new InvalidOperationException("Semaphore is not running. Operation cannot be canceled.");
-
-        cancellationTokenSource.Cancel();
-    }
-
-    public async Task RunAsync()
-    {
-        ThrowIfDisposed();
-
-        if (actionJobs.Count == 0 && taskJobs.Count == 0)
-            throw new InvalidOperationException("Nothing to run");
+        ThrowIfRunning();
+        ThrowIfThereIsNoJobsToRun();
 
         IsRunning = true;
 
@@ -179,18 +151,106 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
         finally
         {
             IsRunning = false;
+
             ClearWorkCollections();
-            cancellationTokenSource = new();
-            NotifyPropertyChanged(nameof(CancellationToken));
+            ResetCancellationToken();
+            ResetProperties();
+
             Completed?.Invoke(this, EventArgs.Empty);
         }
     }
 
+    public override void AddJob(Action job)
+    {
+        base.AddJob(job);
+        TotalJobsCount++;
+    }
+
+    public override void AddJob(Func<Task> job)
+    {
+        base.AddJob(job);
+        TotalJobsCount++;
+    }
+
+    protected override void AddJobActionToSemaphore(Action job)
+    {
+        AddTaskToSemaphore(Task.Run(() =>
+        {
+            try
+            {
+                if (CancellationToken.IsCancellationRequested)
+                {
+                    RaiseCanceled();
+                    return;
+                }
+
+                job();
+                SuccessfullyCompletedJobsCount++;
+            }
+            catch (Exception ex)
+            {
+                ManageException(ex);
+            }
+            finally
+            {
+                ReleaseSemaphore();
+            }
+        }));
+    }
+
+    protected override void AddJobTaskToSemaphore(Func<Task> job)
+    {
+        AddTaskToSemaphore(Task.Run(async () =>
+        {
+            try
+            {
+                if (CancellationToken.IsCancellationRequested)
+                {
+                    RaiseCanceled();
+                    return;
+                }
+
+                await job();
+                SuccessfullyCompletedJobsCount++;
+            }
+            catch (Exception ex)
+            {
+                ManageException(ex);
+            }
+            finally
+            {
+                ReleaseSemaphore();
+            }
+        }));
+    }
+
+    protected override void ManageException(Exception ex)
+    {
+        base.ManageException(ex);
+
+        JobFaulted?.Invoke(this, ex);
+        FaultedJobsCount++;
+    }
+
+    protected override void ThrowIfRunning()
+    {
+        if (IsRunning)
+            throw new InvalidOperationException("Cannot do this operation while running");
+    }
+
+    protected override void ThrowIfNotRunning()
+    {
+        if (!IsRunning)
+            throw new InvalidOperationException("Cannot do this operation while not running");
+    }
+
     #endregion
 
-    private void ThrowIfDisposed()
+    private void ResetProperties()
     {
-        ObjectDisposedException.ThrowIf(disposedValue, this);
+        TotalJobsCount = 0;
+        SuccessfullyCompletedJobsCount = 0;
+        FaultedJobsCount = 0;
     }
 
     private void NotifyPropertyChanged(string propertyName)
@@ -198,136 +258,23 @@ internal class SemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherF
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 
-    private async Task RunInternalAsync()
-    {
-        List<Tuple<object, JobPriority>> jobs = [];
-
-        if (actionJobs.Count > 0)
-            jobs.AddRange(actionJobs.Select(it => new Tuple<object, JobPriority>(it.Item1, it.Item2)));
-
-        if (taskJobs.Count > 0)
-            jobs.AddRange(taskJobs.Select(it => new Tuple<object, JobPriority>(it.Item1, it.Item2)));
-
-        if (jobs.Count == 0)
-            throw new InvalidOperationException("Nothing to run");
-
-        foreach (Tuple<object, JobPriority> job in jobs.OrderBy(it => (int)it.Item2)) //Order by priority
-        {
-            await semaphore.WaitAsync();
-
-            if (job.Item1 is Action action)
-                AddJobActionToSemaphore(action);
-            else
-                AddJobTaskToSemaphore((Func<Task>)job.Item1);
-        }
-
-        await Task.WhenAll(tasks);
-
-        if (exceptions.Count > 0)
-            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", exceptions);
-    }
-
-    private void AddJobActionToSemaphore(Action job)
-    {
-        tasks.Add(Task.Run(() =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    Canceled?.Invoke(this, EventArgs.Empty);
-                    return;
-                }
-
-                job();
-                CompletedJobsCount++;
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        }));
-    }
-
-    private void AddJobTaskToSemaphore(Func<Task> job)
-    {
-        tasks.Add(Task.Run(async () =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    Canceled?.Invoke(this, EventArgs.Empty);
-                    return;
-                }
-
-                await job();
-                CompletedJobsCount++;
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-            finally
-            {
-                semaphore.Release();
-            }
-        }));
-    }
-
-    private void ManageException(Exception ex)
-    {
-        if (!CancellationToken.IsCancellationRequested && CancelPendingJobsIfAnyOtherFails)
-            cancellationTokenSource.Cancel();
-
-        exceptions.Add(ex);
-        JobFaulted?.Invoke(this, ex);
-    }
-
-    private void ClearWorkCollections()
-    {
-        actionJobs.Clear();
-        taskJobs.Clear();
-        exceptions.Clear();
-        tasks.Clear();
-
-        TotalJobsCount = 0;
-        CompletedJobsCount = 0;
-    }
-
     private string GetDebuggerDisplay() => ToString();
 
     public override string ToString()
     {
         ThrowIfDisposed();
-        return $"IsRunning = {IsRunning}, Progress = ({Progress}% completed {CompletedJobsCount} of {TotalJobsCount} jobs)";
+
+        return string.Concat(
+            $"IsRunning = {IsRunning}, SuccessfullyCompletedJobsCount = {SuccessfullyCompletedJobsCount}, ",
+            $"FaultedJobsCount = {FaultedJobsCount}, TotalJobsCount = {TotalJobsCount}"
+        );
     }
 
-    protected virtual void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        if (disposedValue)
-            return;
-
-        if (IsRunning)
-            throw new InvalidOperationException("Cannot dispose while worker is running");
-
         if (disposing)
-        {
-            semaphore.Dispose();
-            cancellationTokenSource.Dispose();
-        }
+            locker.Dispose();
 
-        ClearWorkCollections();
-        disposedValue = true;
-    }
-
-    public void Dispose()
-    {
-        Dispose(disposing: true);
-        GC.SuppressFinalize(this);
+        base.Dispose(disposing);
     }
 }

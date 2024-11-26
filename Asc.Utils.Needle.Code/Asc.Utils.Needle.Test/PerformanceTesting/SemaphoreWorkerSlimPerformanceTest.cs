@@ -1,6 +1,6 @@
 ﻿namespace Asc.Utils.Needle.Test.PerformanceTesting;
 
-public class SemaphoreWorkerPerformanceTest
+public class SemaphoreWorkerSlimPerformanceTest
 {
     [Fact]
     public async Task A_OneThread()
@@ -161,13 +161,13 @@ public class SemaphoreWorkerPerformanceTest
 
     private async Task RunSemaphoreAsync(int numberOfThreads)
     {
-        using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(numberOfThreads);
+        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(numberOfThreads);
 
         AddOneHundredJobsTo(worker);
         await worker.RunAsync();
     }
 
-    private void AddOneHundredJobsTo(INeedleWorker worker)
+    private void AddOneHundredJobsTo(INeedleWorkerSlim worker)
     {
         for (int i = 0; i < 100; i++)
             worker.AddJob(GetJob);
