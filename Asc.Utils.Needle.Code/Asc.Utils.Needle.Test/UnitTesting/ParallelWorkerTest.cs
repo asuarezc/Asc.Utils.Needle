@@ -1,20 +1,20 @@
 ﻿namespace Asc.Utils.Needle.Test.UnitTesting;
 
-public class SemaphoreWorkerSlimTest
+public class ParallelWorkerTest
 {
-    #region AddJob method (Synchronous)
+    #region Base implementation
 
     [Fact]
     public void AddSynchronousJob_IntendedUse()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
         worker.AddJob(() => Console.WriteLine("Ignore this!"));
     }
 
     [Fact]
     public void AddSynchronousJob_WhenJobIsNull()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
         Action? job = null;
 
@@ -23,21 +23,17 @@ public class SemaphoreWorkerSlimTest
 #pragma warning restore CS8604
     }
 
-    #endregion
-
-    #region AddJob method (Asynchronous)
-
     [Fact]
     public void AddAsynchronousJob_IntendedUse()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
         worker.AddJob(async () => await Task.Delay(100));
     }
 
     [Fact]
     public void AddAsynchronousJob_WhenJobIsNull()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
         Func<Task>? job = null;
 
@@ -46,14 +42,10 @@ public class SemaphoreWorkerSlimTest
 #pragma warning restore CS8604
     }
 
-    #endregion
-
-    #region RunAsync method
-
     [Fact]
     public async Task RunAsync_IntendedUse()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
         worker.AddJob(() => Console.WriteLine("Ignore this!"));
         await worker.RunAsync();
@@ -62,25 +54,21 @@ public class SemaphoreWorkerSlimTest
     [Fact]
     public async Task RunAsync_WhenThereIsNothingToRun()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
         await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
     }
-
-    #endregion
-
-    #region Cancel method
 
     [Fact]
     public void Cancel_WhenWorkerIsNotRunning()
     {
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
         Assert.Throws<InvalidOperationException>(worker.Cancel);
     }
 
     [Fact]
     public async Task Cancel_WhenCancellationHasBeenAlreadyRequested()
     {
-        INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
         worker.AddJob(() =>
         {
@@ -110,16 +98,12 @@ public class SemaphoreWorkerSlimTest
         }
     }
 
-    #endregion
-
-    #region CancelPendingJobsIfAnyOtherFails and CancellationToken properties
-
     [Fact]
     public async Task CancelPendingJobsIfAnyOtherFails_WhenTrue()
     {
         List<object> objects = [];
 
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
             cancelPendingJobsIfAnyOtherFails: true
         );
 
@@ -145,7 +129,7 @@ public class SemaphoreWorkerSlimTest
     {
         List<object> objects = [];
 
-        using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(
+        using INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
             cancelPendingJobsIfAnyOtherFails: false
         );
 
@@ -166,15 +150,11 @@ public class SemaphoreWorkerSlimTest
         Assert.NotEmpty(objects);
     }
 
-    #endregion
-
-    #region Canceled event
-
     [Fact]
     public async Task CanceledEvent_IntendedUse()
     {
         bool wasCanceled = false;
-        INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim();
+        INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
         void OnCanceled(object? sender, EventArgs e)
         {

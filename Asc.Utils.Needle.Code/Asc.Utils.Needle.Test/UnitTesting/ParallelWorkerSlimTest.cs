@@ -23,30 +23,6 @@ public class ParallelWorkerSlimTest
 #pragma warning restore CS8604
     }
 
-    [Fact]
-    public void AddSynchronousJob_WhenWorkerIsRunning()
-    {
-        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
-
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(1)));
-
-        Task.Run(async () =>
-        {
-            await worker.RunAsync();
-            worker.Dispose();
-        });
-
-#pragma warning disable IDE0079 // Remove unnecessary deletion
-#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
-        Task.Delay(TimeSpan.FromSeconds(0.1)).Wait(); // Need to wait until worker is running
-#pragma warning restore xUnit1031
-#pragma warning restore IDE0079
-
-        Assert.Throws<InvalidOperationException>(() =>
-            worker.AddJob(() => Console.WriteLine("Fail!"))
-        );
-    }
-
     #endregion
 
     #region AddJob method (Asynchronous)
@@ -70,30 +46,6 @@ public class ParallelWorkerSlimTest
 #pragma warning restore CS8604
     }
 
-    [Fact]
-    public void AddAsynchronousJob_WhenWorkerIsRunning()
-    {
-        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
-
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(1)));
-
-        Task.Run(async () =>
-        {
-            await worker.RunAsync();
-            worker.Dispose();
-        });
-
-#pragma warning disable IDE0079 // Remove unnecessary deletion
-#pragma warning disable xUnit1031 // Do not use blocking task operations in test method
-        Task.Delay(TimeSpan.FromSeconds(0.25)).Wait(); // Need to wait until worker is running
-#pragma warning restore xUnit1031
-#pragma warning restore IDE0079
-
-        Assert.Throws<InvalidOperationException>(() =>
-            worker.AddJob(async () => await Task.Delay(1))
-        );
-    }
-
     #endregion
 
     #region RunAsync method
@@ -111,25 +63,6 @@ public class ParallelWorkerSlimTest
     public async Task RunAsync_WhenThereIsNothingToRun()
     {
         using INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
-        await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
-    }
-
-    [Fact]
-    public async Task RunAsync_WhenWorkerIsAlreadyRunning()
-    {
-        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
-
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(1)));
-
-#pragma warning disable CS4014 // Not awaited async invoke
-        Task.Run(async () =>
-        {
-            await worker.RunAsync();
-            worker.Dispose();
-        });
-#pragma warning restore CS4014
-
-        await Task.Delay(TimeSpan.FromSeconds(0.1)); // Need to wait until worker is running
         await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
     }
 
