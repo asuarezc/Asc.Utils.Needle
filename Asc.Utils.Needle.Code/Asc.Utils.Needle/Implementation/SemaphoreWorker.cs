@@ -6,12 +6,7 @@ namespace Asc.Utils.Needle.Implementation;
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 {
-    private bool isRunning = false;
-    private int totalJobsCount = 0;
-    private int successfullyCompletedJobsCount = 0;
-    private int faultedJobsCount = 0;
-
-    private readonly ReaderWriterLockSlim locker = new(LockRecursionPolicy.NoRecursion);
+    private static readonly object lockObject = new();
 
     public SemaphoreWorker()
         : base() { }
@@ -31,93 +26,13 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     public event EventHandler<Exception>? JobFaulted;
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public bool IsRunning
-    {
-        get
-        {
-            ThrowIfDisposed();
+    public bool IsRunning { get; private set; }
 
-            locker.EnterReadLock();
-            try { return isRunning; }
-            finally { locker.ExitReadLock(); }
-        }
-        private set
-        {
-            ThrowIfDisposed();
+    public int TotalJobsCount { get; private set; }
 
-            locker.EnterWriteLock();
-            try { isRunning = value; }
-            finally { locker.ExitWriteLock(); }
+    public int SuccessfullyCompletedJobsCount { get; private set; }
 
-            NotifyPropertyChanged(nameof(IsRunning));
-        }
-    }
-
-    public int TotalJobsCount
-    {
-        get
-        {
-            ThrowIfDisposed();
-
-            locker.EnterReadLock();
-            try { return totalJobsCount; }
-            finally { locker.ExitReadLock(); }
-        }
-        private set
-        {
-            ThrowIfDisposed();
-
-            locker.EnterWriteLock();
-            try { totalJobsCount = value; }
-            finally { locker.ExitWriteLock(); }
-
-            NotifyPropertyChanged(nameof(TotalJobsCount));
-        }
-    }
-
-    public int SuccessfullyCompletedJobsCount
-    {
-        get
-        {
-            ThrowIfDisposed();
-
-            locker.EnterReadLock();
-            try { return successfullyCompletedJobsCount; }
-            finally { locker.ExitReadLock(); }
-        }
-        private set
-        {
-            ThrowIfDisposed();
-
-            locker.EnterWriteLock();
-            try { successfullyCompletedJobsCount = value; }
-            finally { locker.ExitWriteLock(); }
-
-            NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
-        }
-    }
-
-    public int FaultedJobsCount
-    {
-        get
-        {
-            ThrowIfDisposed();
-
-            locker.EnterReadLock();
-            try { return faultedJobsCount; }
-            finally { locker.ExitReadLock(); }
-        }
-        private set
-        {
-            ThrowIfDisposed();
-
-            locker.EnterWriteLock();
-            try { faultedJobsCount = value; }
-            finally { locker.ExitWriteLock(); }
-
-            NotifyPropertyChanged(nameof(FaultedJobsCount));
-        }
-    }
+    public int FaultedJobsCount { get; private set; }
 
     public void BeginRun()
     {
@@ -135,10 +50,13 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     public override async Task RunAsync()
     {
         ThrowIfDisposed();
-        ThrowIfRunning();
         ThrowIfThereIsNoJobsToRun();
 
-        IsRunning = true;
+        lock (lockObject)
+        {
+            ThrowIfRunning();
+            IsRunning = true;
+        }
 
         try
         {
@@ -150,7 +68,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         }
         finally
         {
-            IsRunning = false;
+            lock (lockObject)
+                IsRunning = false;
 
             ClearWorkCollections();
             ResetCancellationToken();
@@ -162,13 +81,17 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     public override void AddJob(Action job)
     {
         base.AddJob(job);
-        TotalJobsCount++;
+
+        lock (lockObject)
+            TotalJobsCount++;
     }
 
     public override void AddJob(Func<Task> job)
     {
         base.AddJob(job);
-        TotalJobsCount++;
+
+        lock (lockObject)
+            TotalJobsCount++;
     }
 
     protected override void AddJobActionToSemaphore(Action job)
@@ -184,7 +107,9 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
                 }
 
                 job();
-                SuccessfullyCompletedJobsCount++;
+
+                lock (lockObject)
+                    SuccessfullyCompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -210,7 +135,9 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
                 }
 
                 await job();
-                SuccessfullyCompletedJobsCount++;
+
+                lock (lockObject)
+                    SuccessfullyCompletedJobsCount++;
             }
             catch (Exception ex)
             {
@@ -227,7 +154,9 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.ManageException(ex);
 
-        FaultedJobsCount++;
+        lock (lockObject)
+            FaultedJobsCount++;
+
         JobFaulted?.Invoke(this, ex);
     }
 
@@ -260,13 +189,5 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
             $"IsRunning = {IsRunning}, SuccessfullyCompletedJobsCount = {SuccessfullyCompletedJobsCount}, ",
             $"FaultedJobsCount = {FaultedJobsCount}, TotalJobsCount = {TotalJobsCount}"
         );
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-            locker.Dispose();
-
-        base.Dispose(disposing);
     }
 }

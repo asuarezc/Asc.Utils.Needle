@@ -1,6 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
-using System.Security.AccessControl;
 
 namespace Asc.Utils.Needle.Test.UnitTesting;
 
@@ -218,6 +216,9 @@ public class SemaphoreWorkerTest
     [Fact]
     public async Task JobFaultedEvent()
     {
+        int faulted = 0;
+        ConcurrentBag<object> bag = [];
+
         INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
             cancelPendingJobsIfAnyOtherFails: false
         );
@@ -226,18 +227,19 @@ public class SemaphoreWorkerTest
         Assert.Equal(0, worker.SuccessfullyCompletedJobsCount);
         Assert.Equal(0, worker.TotalJobsCount);
 
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => bag.Add(new object()));
         worker.AddJob(() => throw new InvalidOperationException());
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => bag.Add(new object()));
         worker.AddJob(() => throw new InvalidOperationException());
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => bag.Add(new object()));
         worker.AddJob(() => throw new InvalidOperationException());
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => bag.Add(new object()));
         worker.AddJob(() => throw new InvalidOperationException());
-        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => bag.Add(new object()));
 
-        static void OnJobFaulted(object? sender, Exception ex)
+        void OnJobFaulted(object? sender, Exception ex)
         {
+            faulted++;
             Assert.NotNull(ex);
             Assert.True(ex is InvalidOperationException);
         };
@@ -246,6 +248,8 @@ public class SemaphoreWorkerTest
         await Assert.ThrowsAsync<AggregateException>(worker.RunAsync);
         worker.JobFaulted -= OnJobFaulted;
 
+        Assert.Equal(4, faulted);
+        Assert.Equal(5, bag.Count);
         Assert.Equal(4, worker.FaultedJobsCount);
         Assert.Equal(5, worker.SuccessfullyCompletedJobsCount);
         Assert.Equal(9, worker.TotalJobsCount);
