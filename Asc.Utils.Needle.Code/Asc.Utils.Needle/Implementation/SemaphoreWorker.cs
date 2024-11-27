@@ -154,7 +154,6 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
             ClearWorkCollections();
             ResetCancellationToken();
-            ResetProperties();
 
             Completed?.Invoke(this, EventArgs.Empty);
         }
@@ -228,8 +227,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.ManageException(ex);
 
-        JobFaulted?.Invoke(this, ex);
         FaultedJobsCount++;
+        JobFaulted?.Invoke(this, ex);
     }
 
     protected override void ThrowIfRunning()
@@ -245,13 +244,6 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     }
 
     #endregion
-
-    private void ResetProperties()
-    {
-        TotalJobsCount = 0;
-        SuccessfullyCompletedJobsCount = 0;
-        FaultedJobsCount = 0;
-    }
 
     private void NotifyPropertyChanged(string propertyName)
     {

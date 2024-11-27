@@ -1,4 +1,8 @@
-﻿namespace Asc.Utils.Needle.Test.UnitTesting;
+﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
+using System.Security.AccessControl;
+
+namespace Asc.Utils.Needle.Test.UnitTesting;
 
 public class SemaphoreWorkerTest
 {
@@ -178,4 +182,75 @@ public class SemaphoreWorkerTest
     }
 
     #endregion
+
+    [Fact]
+    public async Task BeginRunAndCompletedEvent()
+    {
+        ConcurrentBag<object> bag = [];
+        bool completedExecuted = false;
+
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        void OnCompleted(object? sender, EventArgs e)
+        {
+            Assert.Equal(5, bag.Count);
+
+            worker.Completed -= OnCompleted;
+            worker.Dispose();
+            completedExecuted = true;
+        };
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        worker.Completed += OnCompleted;
+        worker.BeginRun();
+
+        while (!completedExecuted)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.Throws<ObjectDisposedException>(() => Console.WriteLine(worker.ToString()));
+    }
+
+    [Fact]
+    public async Task JobFaultedEvent()
+    {
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
+            cancelPendingJobsIfAnyOtherFails: false
+        );
+
+        Assert.Equal(0, worker.FaultedJobsCount);
+        Assert.Equal(0, worker.SuccessfullyCompletedJobsCount);
+        Assert.Equal(0, worker.TotalJobsCount);
+
+        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(async () => await Task.Delay(TimeSpan.FromSeconds(0.1)));
+
+        static void OnJobFaulted(object? sender, Exception ex)
+        {
+            Assert.NotNull(ex);
+            Assert.True(ex is InvalidOperationException);
+        };
+
+        worker.JobFaulted += OnJobFaulted;
+        await Assert.ThrowsAsync<AggregateException>(worker.RunAsync);
+        worker.JobFaulted -= OnJobFaulted;
+
+        Assert.Equal(4, worker.FaultedJobsCount);
+        Assert.Equal(5, worker.SuccessfullyCompletedJobsCount);
+        Assert.Equal(9, worker.TotalJobsCount);
+
+        worker.Dispose();
+    }
+
 }
