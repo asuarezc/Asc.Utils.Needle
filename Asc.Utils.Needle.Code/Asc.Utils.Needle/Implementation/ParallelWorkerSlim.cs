@@ -12,7 +12,6 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
     private CancellationTokenSource cancellationTokenSource = new();
 
     private static readonly object lockObject = new();
-    private readonly ReaderWriterLockSlim locker = new(LockRecursionPolicy.NoRecursion);
     private readonly ConcurrentBag<Action> actionJobs = [];
     private readonly ConcurrentBag<Func<Task>> taskJobs = [];
     private readonly ConcurrentBag<Exception> exceptions = [];
@@ -66,9 +65,13 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
     public virtual async Task RunAsync()
     {
         ThrowIfDisposed();
-        ThrowIfRunning();
         ThrowIfThereIsNoJobsToRun();
-        SetIsRunning(true);
+
+        lock (lockObject)
+        {
+            ThrowIfRunning();
+            isRunning = true;
+        }
 
         try
         {
@@ -80,7 +83,9 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         }
         finally
         {
-            SetIsRunning(false);
+            lock (lockObject)
+                isRunning = false;
+
             ClearWorkCollections();
             ResetCancellationToken();
             canceledEventAlreadyRaised = false;
@@ -124,13 +129,13 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
 
     protected virtual void ThrowIfRunning()
     {
-        if (IsRunning())
+        if (isRunning)
             throw new InvalidOperationException("Cannot do this operation while running");
     }
 
     protected virtual void ThrowIfNotRunning()
     {
-        if (!IsRunning())
+        if (!isRunning)
             throw new InvalidOperationException("Cannot do this operation while not running");
     }
 
@@ -212,31 +217,13 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         });
     }
 
-    private bool IsRunning()
-    {
-        bool workerIsRunning;
-
-        locker.EnterReadLock();
-        try { workerIsRunning = isRunning; }
-        finally { locker.ExitReadLock(); }
-
-        return workerIsRunning;
-    }
-
-    private void SetIsRunning(bool value)
-    {
-        locker.EnterWriteLock();
-        try { isRunning = value; }
-        finally { locker.ExitWriteLock(); }
-    }
-
     private string GetDebuggerDisplay() => ToString();
 
     public override string ToString()
     {
         ThrowIfDisposed();
 
-        return $"IsRunning = {IsRunning()}";
+        return $"IsRunning = {isRunning}";
     }
 
     #region IDisposable implementation
@@ -246,14 +233,11 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         if (disposedValue)
             return;
 
-        if (IsRunning())
+        if (isRunning)
             throw new InvalidOperationException("Cannot do this operation while running");
 
         if (disposing)
-        {
-            locker.Dispose();
             cancellationTokenSource.Dispose();
-        }
 
         disposedValue = true;
     }

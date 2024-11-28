@@ -182,38 +182,6 @@ public class SemaphoreWorkerTest
     #endregion
 
     [Fact]
-    public async Task BeginRunAndCompletedEvent()
-    {
-        ConcurrentBag<object> bag = [];
-        bool completedExecuted = false;
-
-        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
-
-        void OnCompleted(object? sender, EventArgs e)
-        {
-            Assert.Equal(5, bag.Count);
-
-            worker.Completed -= OnCompleted;
-            worker.Dispose();
-            completedExecuted = true;
-        };
-
-        worker.AddJob(() => bag.Add(new object()));
-        worker.AddJob(() => bag.Add(new object()));
-        worker.AddJob(() => bag.Add(new object()));
-        worker.AddJob(() => bag.Add(new object()));
-        worker.AddJob(() => bag.Add(new object()));
-
-        worker.Completed += OnCompleted;
-        worker.BeginRun();
-
-        while (!completedExecuted)
-            await Task.Delay(TimeSpan.FromSeconds(0.1));
-
-        Assert.Throws<ObjectDisposedException>(() => Console.WriteLine(worker.ToString()));
-    }
-
-    [Fact]
     public async Task JobFaultedEvent()
     {
         int faulted = 0;

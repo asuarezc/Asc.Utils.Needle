@@ -13,7 +13,6 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
     #region INeedleWorker implementation
 
-    public event EventHandler? Completed;
     public event EventHandler<Exception>? JobFaulted;
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -24,15 +23,6 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
     public int SuccessfullyCompletedJobsCount { get; private set; }
 
     public int FaultedJobsCount { get; private set; }
-
-    public void BeginRun()
-    {
-        ThrowIfDisposed();
-        ThrowIfRunning();
-        ThrowIfThereIsNoJobsToRun();
-
-        Task.Run(RunAsync);
-    }
 
     #endregion
 
@@ -64,8 +54,6 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
             ClearWorkCollections();
             ResetCancellationToken();
-
-            Completed?.Invoke(this, EventArgs.Empty);
         }
     }
 

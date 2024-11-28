@@ -14,14 +14,6 @@ namespace Asc.Utils.Needle;
 public interface INeedleWorker : INeedleWorkerSlim, INotifyPropertyChanged
 {
     /// <summary>
-    /// Raised when all jobs have been completed (successfully or not). Remember to subscribe to this event only
-    /// if you haved decided to invoke BeginRun since RunAsync can be awaited.
-    /// Be aware! This event will not be raised if you invoke Cancel method due to, by definition,
-    /// something canceled is something not completed. For that purpose subscribe Cancelled event.
-    /// </summary>
-    event EventHandler Completed;
-
-    /// <summary>
     /// Raised when a job fails so you can check exception before this worker RunAsync method throws an AggregateException
     /// with the same exception instance inside its inners exceptions property.
     /// Usefull also if you haved decided to invoke BeginRun instead awaiting RunAsync.
@@ -51,11 +43,4 @@ public interface INeedleWorker : INeedleWorkerSlim, INotifyPropertyChanged
     /// You can subscribe to the PropertyChanged event to check if this property has changed its value.
     /// </summary>
     int FaultedJobsCount { get; }
-
-    /// <summary>
-    /// Remember not to invoke this method inside an using statement as the worker
-    /// may have been disposed before all jobs have been executed.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">If there is not any job to run.</exception>
-    void BeginRun();
 }

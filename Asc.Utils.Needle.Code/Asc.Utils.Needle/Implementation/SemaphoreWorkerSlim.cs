@@ -12,7 +12,6 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     private CancellationTokenSource cancellationTokenSource = new();
 
     private static readonly object lockObject = new();
-    private readonly ReaderWriterLockSlim locker;
     private readonly SemaphoreSlim semaphore;
     private readonly ConcurrentBag<Action> actionJobs = [];
     private readonly ConcurrentBag<Func<Task>> taskJobs = [];
@@ -33,7 +32,6 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         if (numberOfThreads <= 0)
             throw new ArgumentException($"Param {numberOfThreads} must be greater than zero", nameof(numberOfThreads));
 
-        locker = new ReaderWriterLockSlim(LockRecursionPolicy.NoRecursion);
         semaphore = new SemaphoreSlim(numberOfThreads);
         CancelPendingJobsIfAnyOtherFails = cancelPendingJobsIfAnyOtherFails;
     }
@@ -84,9 +82,13 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     public virtual async Task RunAsync()
     {
         ThrowIfDisposed();
-        ThrowIfRunning();
         ThrowIfThereIsNoJobsToRun();
-        SetIsRunning(true);
+
+        lock (lockObject)
+        {
+            ThrowIfRunning();
+            isRunning = true;
+        }
 
         try
         {
@@ -98,7 +100,9 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         }
         finally
         {
-            SetIsRunning(false);
+            lock (lockObject)
+                isRunning = false;
+
             ClearWorkCollections();
             ResetCancellationToken();
             canceledEventAlreadyRaised = false;
@@ -129,13 +133,13 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected virtual void ThrowIfRunning()
     {
-        if (IsRunning())
+        if (isRunning)
             throw new InvalidOperationException("Cannot do this operation while running");
     }
 
     protected virtual void ThrowIfNotRunning()
     {
-        if (!IsRunning())
+        if (!isRunning)
             throw new InvalidOperationException("Cannot do this operation while not running");
     }
 
@@ -213,24 +217,6 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     #endregion
 
-    private bool IsRunning()
-    {
-        bool workerIsRunning;
-
-        locker.EnterReadLock();
-        try { workerIsRunning = isRunning; }
-        finally { locker.ExitReadLock(); }
-
-        return workerIsRunning;
-    }
-
-    private void SetIsRunning(bool value)
-    {
-        locker.EnterWriteLock();
-        try { isRunning = value; }
-        finally { locker.ExitWriteLock(); }
-    }
-
     private void RunJob(Action job)
     {
         try
@@ -283,7 +269,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     {
         ThrowIfDisposed();
 
-        return $"IsRunning = {IsRunning()}";
+        return $"IsRunning = {isRunning}";
     }
 
     #region IDisposable implementation
@@ -293,12 +279,11 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         if (disposedValue)
             return;
 
-        if (IsRunning())
+        if (isRunning)
             throw new InvalidOperationException("Cannot do this operation while running");
 
         if (disposing)
         {
-            locker.Dispose();
             semaphore.Dispose();
             cancellationTokenSource.Dispose();
         }

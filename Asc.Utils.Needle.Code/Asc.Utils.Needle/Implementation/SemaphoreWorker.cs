@@ -22,7 +22,6 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
     #region INeedleWorker implementation
 
-    public event EventHandler? Completed;
     public event EventHandler<Exception>? JobFaulted;
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -33,15 +32,6 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     public int SuccessfullyCompletedJobsCount { get; private set; }
 
     public int FaultedJobsCount { get; private set; }
-
-    public void BeginRun()
-    {
-        ThrowIfDisposed();
-        ThrowIfRunning();
-        ThrowIfThereIsNoJobsToRun();
-
-        Task.Run(RunAsync);
-    }
 
     #endregion
 
@@ -73,8 +63,6 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
             ClearWorkCollections();
             ResetCancellationToken();
-
-            Completed?.Invoke(this, EventArgs.Empty);
         }
     }
 
