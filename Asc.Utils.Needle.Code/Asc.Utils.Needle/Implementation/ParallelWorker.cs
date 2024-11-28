@@ -39,6 +39,8 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
             IsRunning = true;
         }
 
+        NotifyPropertyChanged(nameof(IsRunning));
+
         try
         {
             await RunInternalAsync();
@@ -52,6 +54,7 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
             lock (lockObject)
                 IsRunning = false;
 
+            NotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
             ResetCancellationToken();
         }
@@ -63,6 +66,8 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
         lock (lockObject)
             TotalJobsCount++;
+
+        NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     public override void AddJob(Func<Task> job)
@@ -71,6 +76,8 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
         lock (lockObject)
             TotalJobsCount++;
+
+        NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     protected override Task GetTaskFromJob(Action job)
@@ -89,6 +96,8 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
                 lock (lockObject)
                     SuccessfullyCompletedJobsCount++;
+
+                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
             {
@@ -113,6 +122,8 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
                 lock (lockObject)
                     SuccessfullyCompletedJobsCount++;
+
+                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
             {
@@ -128,6 +139,7 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
         lock (lockObject)
             FaultedJobsCount++;
 
+        NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);
     }
 

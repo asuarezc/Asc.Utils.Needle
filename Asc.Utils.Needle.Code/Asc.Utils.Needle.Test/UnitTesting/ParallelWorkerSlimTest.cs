@@ -1,4 +1,6 @@
-﻿namespace Asc.Utils.Needle.Test.UnitTesting;
+﻿using System.Collections.Concurrent;
+
+namespace Asc.Utils.Needle.Test.UnitTesting;
 
 public class ParallelWorkerSlimTest
 {
@@ -21,6 +23,31 @@ public class ParallelWorkerSlimTest
 #pragma warning disable CS8604 // Null reference argument
         Assert.Throws<ArgumentNullException>(() => worker.AddJob(job));
 #pragma warning restore CS8604
+    }
+
+    [Fact]
+    public async Task AddSynchronousJob_WhenWorkingIsRunning()
+    {
+        bool running = false;
+        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.Throws<InvalidOperationException>(() => worker.AddJob(() => Console.WriteLine("Ignore this!")));
     }
 
     #endregion
@@ -46,6 +73,31 @@ public class ParallelWorkerSlimTest
 #pragma warning restore CS8604
     }
 
+    [Fact]
+    public async Task AddAsynchronousJob_WhenWorkingIsRunning()
+    {
+        bool running = false;
+        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.Throws<InvalidOperationException>(() => worker.AddJob(async () => await Task.Delay(100)));
+    }
+
     #endregion
 
     #region RunAsync method
@@ -63,6 +115,31 @@ public class ParallelWorkerSlimTest
     public async Task RunAsync_WhenThereIsNothingToRun()
     {
         using INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+        await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenWorkerIsRunning()
+    {
+        bool running = false;
+        INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
         await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
     }
 
@@ -112,7 +189,7 @@ public class ParallelWorkerSlimTest
 
     #endregion
 
-    #region CancelPendingJobsIfAnyOtherFails and CancellationToken properties
+    #region CancelPendingJobsIfAnyOtherFails and CancellationToken property
 
     [Fact]
     public async Task CancelPendingJobsIfAnyOtherFails_WhenTrue()
@@ -195,6 +272,52 @@ public class ParallelWorkerSlimTest
         }
 
         Assert.True(wasCanceled);
+    }
+
+    #endregion
+
+    #region Intended uses
+
+    [Fact]
+    public async Task OneBatchOfJobs()
+    {
+        ConcurrentBag<object> bag = [];
+        using INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+
+        Assert.Equal(5, bag.Count);
+    }
+
+    [Fact]
+    public async Task TwoBatchsOfJobs()
+    {
+        ConcurrentBag<object> bag = [];
+        using INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+        Assert.Equal(5, bag.Count);
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+        Assert.Equal(10, bag.Count);
     }
 
     #endregion

@@ -1,10 +1,11 @@
 ﻿using System.Collections.Concurrent;
+using System.ComponentModel;
 
 namespace Asc.Utils.Needle.Test.UnitTesting;
 
 public class SemaphoreWorkerTest
 {
-    #region Base implementation
+    #region SemaphoreWorkerSlimTests
 
     [Fact]
     public void AddSynchronousJob_IntendedUse()
@@ -23,6 +24,31 @@ public class SemaphoreWorkerTest
 #pragma warning disable CS8604 // Null reference argument
         Assert.Throws<ArgumentNullException>(() => worker.AddJob(job));
 #pragma warning restore CS8604
+    }
+
+    [Fact]
+    public async Task AddSynchronousJob_WhenWorkingIsRunning()
+    {
+        bool running = false;
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.Throws<InvalidOperationException>(() => worker.AddJob(() => Console.WriteLine("Ignore this!")));
     }
 
     [Fact]
@@ -45,6 +71,31 @@ public class SemaphoreWorkerTest
     }
 
     [Fact]
+    public async Task AddAsynchronousJob_WhenWorkingIsRunning()
+    {
+        bool running = false;
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.Throws<InvalidOperationException>(() => worker.AddJob(async () => await Task.Delay(100)));
+    }
+
+    [Fact]
     public async Task RunAsync_IntendedUse()
     {
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
@@ -57,6 +108,31 @@ public class SemaphoreWorkerTest
     public async Task RunAsync_WhenThereIsNothingToRun()
     {
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+        await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenWorkerIsRunning()
+    {
+        bool running = false;
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(10));
+            worker.Dispose();
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
         await Assert.ThrowsAsync<InvalidOperationException>(worker.RunAsync);
     }
 
@@ -179,10 +255,54 @@ public class SemaphoreWorkerTest
         Assert.True(wasCanceled);
     }
 
-    #endregion
+    [Fact]
+    public async Task OneBatchOfJobs()
+    {
+        ConcurrentBag<object> bag = [];
+        using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+
+        Assert.Equal(5, bag.Count);
+    }
 
     [Fact]
-    public async Task JobFaultedEvent()
+    public async Task TwoBatchsOfJobs()
+    {
+        ConcurrentBag<object> bag = [];
+        using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+        Assert.Equal(5, bag.Count);
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => bag.Add(new object()));
+
+        await worker.RunAsync();
+        Assert.Equal(10, bag.Count);
+    }
+
+    #endregion
+
+    #region SemaphoreWorkerTests
+
+    [Fact]
+    public async Task JobFaultedEventAndSomeProperties()
     {
         int faulted = 0;
         ConcurrentBag<object> bag = [];
@@ -225,4 +345,99 @@ public class SemaphoreWorkerTest
         worker.Dispose();
     }
 
+    [Fact]
+    public async Task IsRunningProperty()
+    {
+        bool running = false;
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
+
+        worker.AddJob(async () =>
+        {
+            running = true;
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            running = false;
+        });
+
+        //This is a bad practice. RunAsync must be always waited.
+#pragma warning disable CS4014
+        Task.Run(worker.RunAsync);
+#pragma warning restore CS4014
+
+        while (!running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.True(worker.IsRunning);
+
+        while (running)
+            await Task.Delay(TimeSpan.FromSeconds(0.1));
+
+        Assert.False(worker.IsRunning);
+        worker.Dispose();
+    }
+
+    [Fact]
+    public async Task PropertyChanged()
+    {
+        bool isRunningChecked = false;
+        bool totalJobsCountChecked = false;
+        bool successfullyCompletedJobsCountChecked = false;
+        bool faultedJobsCountChecked = false;
+
+        ConcurrentBag<object> bag = [];
+
+        void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e == null || string.IsNullOrEmpty(e.PropertyName))
+                return;
+
+            switch (e.PropertyName)
+            {
+                case nameof(INeedleWorker.IsRunning):
+                    isRunningChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.TotalJobsCount):
+                    totalJobsCountChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.SuccessfullyCompletedJobsCount):
+                    successfullyCompletedJobsCountChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.FaultedJobsCount):
+                    faultedJobsCountChecked = true;
+                    break;
+
+                default: throw new InvalidOperationException();
+            }
+        }
+
+        INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
+            cancelPendingJobsIfAnyOtherFails: false
+        );
+
+        worker.PropertyChanged += OnPropertyChanged;
+
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(() => bag.Add(new object()));
+        worker.AddJob(() => throw new InvalidOperationException());
+        worker.AddJob(() => bag.Add(new object()));
+
+        await Assert.ThrowsAsync<AggregateException>(worker.RunAsync);
+
+        worker.PropertyChanged -= OnPropertyChanged;
+        worker.Dispose();
+
+        Assert.True(isRunningChecked);
+        Assert.True(totalJobsCountChecked);
+        Assert.True(successfullyCompletedJobsCountChecked);
+        Assert.True(faultedJobsCountChecked);
+    }
+
+    #endregion
 }

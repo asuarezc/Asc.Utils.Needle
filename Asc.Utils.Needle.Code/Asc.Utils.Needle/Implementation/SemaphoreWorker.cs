@@ -48,6 +48,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
             IsRunning = true;
         }
 
+        NotifyPropertyChanged(nameof(IsRunning));
+
         try
         {
             await RunInternalAsync();
@@ -61,6 +63,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
             lock (lockObject)
                 IsRunning = false;
 
+            NotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
             ResetCancellationToken();
         }
@@ -72,6 +75,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
         lock (lockObject)
             TotalJobsCount++;
+
+        NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     public override void AddJob(Func<Task> job)
@@ -80,6 +85,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
         lock (lockObject)
             TotalJobsCount++;
+
+        NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     protected override void AddJobActionToSemaphore(Action job)
@@ -98,6 +105,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 lock (lockObject)
                     SuccessfullyCompletedJobsCount++;
+
+                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
             {
@@ -126,6 +135,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 lock (lockObject)
                     SuccessfullyCompletedJobsCount++;
+
+                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
             {
@@ -145,6 +156,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         lock (lockObject)
             FaultedJobsCount++;
 
+        NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);
     }
 
