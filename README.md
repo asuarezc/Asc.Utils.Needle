@@ -73,6 +73,7 @@ Install-Package Asc.Utils.Needle
     {
       wasCanceled = true;
       Console.WriteLine("Timeout!");
+      worker.Canceled -= OnCanceled;
     }
 
     worker.Canceled += OnCanceled;
