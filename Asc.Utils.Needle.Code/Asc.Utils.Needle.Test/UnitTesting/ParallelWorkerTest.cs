@@ -150,7 +150,9 @@ public class ParallelWorkerTest
 
         worker.AddJob(() =>
         {
+            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
+            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
         });
 
@@ -177,6 +179,19 @@ public class ParallelWorkerTest
     }
 
     [Fact]
+    public void CancelPendingJobsIfAnyOtherFails()
+    {
+        using INeedleWorker workerTrue =
+            Pincushion.Instance.GetParallelWorker(cancelPendingJobsIfAnyOtherFails: true);
+
+        using INeedleWorker workerFalse =
+            Pincushion.Instance.GetParallelWorker(cancelPendingJobsIfAnyOtherFails: false);
+
+        Assert.True(workerTrue.CancelPendingJobsIfAnyOtherFails);
+        Assert.False(workerFalse.CancelPendingJobsIfAnyOtherFails);
+    }
+
+    [Fact]
     public async Task CancelPendingJobsIfAnyOtherFails_WhenTrue()
     {
         List<object> objects = [];
@@ -185,15 +200,13 @@ public class ParallelWorkerTest
             cancelPendingJobsIfAnyOtherFails: true
         );
 
-        worker.AddJob(() =>
-        {
-            throw new InvalidOperationException();
-        });
+        worker.AddJob(() => throw new InvalidOperationException());
 
         worker.AddJob(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
+            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -211,15 +224,13 @@ public class ParallelWorkerTest
             cancelPendingJobsIfAnyOtherFails: false
         );
 
-        worker.AddJob(() =>
-        {
-            throw new InvalidOperationException();
-        });
+        worker.AddJob(() => throw new InvalidOperationException());
 
         worker.AddJob(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
+            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -234,9 +245,11 @@ public class ParallelWorkerTest
         bool wasCanceled = false;
         INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
+        // ReSharper disable once MoveLocalFunctionAfterJumpStatement
         void OnCanceled(object? sender, EventArgs e)
         {
             wasCanceled = true;
+            // ReSharper disable once AccessToDisposedClosure
             worker.Canceled -= OnCanceled;
         }
 
@@ -325,13 +338,6 @@ public class ParallelWorkerTest
         worker.AddJob(() => throw new InvalidOperationException());
         worker.AddJob(() => bag.Add(new object()));
 
-        void OnJobFaulted(object? sender, Exception ex)
-        {
-            faulted++;
-            Assert.NotNull(ex);
-            Assert.True(ex is InvalidOperationException);
-        };
-
         worker.JobFaulted += OnJobFaulted;
         await Assert.ThrowsAsync<AggregateException>(worker.RunAsync);
         worker.JobFaulted -= OnJobFaulted;
@@ -343,6 +349,14 @@ public class ParallelWorkerTest
         Assert.Equal(9, worker.TotalJobsCount);
 
         worker.Dispose();
+        return;
+
+        void OnJobFaulted(object? sender, Exception ex)
+        {
+            faulted++;
+            Assert.NotNull(ex);
+            Assert.True(ex is InvalidOperationException);
+        }
     }
 
     [Fact]
@@ -383,34 +397,8 @@ public class ParallelWorkerTest
         bool successfullyCompletedJobsCountChecked = false;
         bool faultedJobsCountChecked = false;
 
+        // ReSharper disable once CollectionNeverQueried.Local
         ConcurrentBag<object> bag = [];
-
-        void OnPropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e == null || string.IsNullOrEmpty(e.PropertyName))
-                return;
-
-            switch (e.PropertyName)
-            {
-                case nameof(INeedleWorker.IsRunning):
-                    isRunningChecked = true;
-                    break;
-
-                case nameof(INeedleWorker.TotalJobsCount):
-                    totalJobsCountChecked = true;
-                    break;
-
-                case nameof(INeedleWorker.SuccessfullyCompletedJobsCount):
-                    successfullyCompletedJobsCountChecked = true;
-                    break;
-
-                case nameof(INeedleWorker.FaultedJobsCount):
-                    faultedJobsCountChecked = true;
-                    break;
-
-                default: throw new InvalidOperationException();
-            }
-        }
 
         INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
             cancelPendingJobsIfAnyOtherFails: false
@@ -437,6 +425,34 @@ public class ParallelWorkerTest
         Assert.True(totalJobsCountChecked);
         Assert.True(successfullyCompletedJobsCountChecked);
         Assert.True(faultedJobsCountChecked);
+        return;
+
+        void OnPropertyChanged(object? sender, PropertyChangedEventArgs? e)
+        {
+            if (e == null || string.IsNullOrEmpty(e.PropertyName))
+                return;
+
+            switch (e.PropertyName)
+            {
+                case nameof(INeedleWorker.IsRunning):
+                    isRunningChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.TotalJobsCount):
+                    totalJobsCountChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.SuccessfullyCompletedJobsCount):
+                    successfullyCompletedJobsCountChecked = true;
+                    break;
+
+                case nameof(INeedleWorker.FaultedJobsCount):
+                    faultedJobsCountChecked = true;
+                    break;
+
+                default: throw new InvalidOperationException();
+            }
+        }
     }
 
     #endregion

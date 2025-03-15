@@ -1,22 +1,25 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
+[SuppressMessage("ReSharper", "MethodSupportsCancellation")]
 internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 {
-    private bool disposedValue = false;
-    private bool canceledEventAlreadyRaised = false;
-    private bool isRunning = false;
-    private CancellationTokenSource cancellationTokenSource = new();
+    private bool disposedValue;
+    private bool canceledEventAlreadyRaised;
+    private bool isRunning;
 
-    private static readonly object lockObject = new();
+    private static readonly Lock locker = new();
     private readonly SemaphoreSlim semaphore;
     private readonly ConcurrentBag<Action> actionJobs = [];
     private readonly ConcurrentBag<Func<Task>> taskJobs = [];
     private readonly ConcurrentBag<Exception> exceptions = [];
     private readonly List<Task> tasks = [];
+
+    protected CancellationTokenSource cancellationTokenSource = new();
 
     public SemaphoreWorkerSlim()
         : this(Environment.ProcessorCount, true) { }
@@ -49,7 +52,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         }
     }
 
-    public bool CancelPendingJobsIfAnyOtherFails { get; private set; }
+    public bool CancelPendingJobsIfAnyOtherFails { get; }
 
     public virtual void AddJob(Action job)
     {
@@ -84,28 +87,38 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             ThrowIfRunning();
             isRunning = true;
+        }
+        finally
+        {
+            locker.Exit();
         }
 
         try
         {
             await RunInternalAsync();
         }
-        catch (Exception)
-        {
-            throw;
-        }
         finally
         {
-            lock (lockObject)
+            locker.Enter();
+
+            try
+            {
                 isRunning = false;
+                canceledEventAlreadyRaised = false;
+                cancellationTokenSource = new CancellationTokenSource();
+            }
+            finally
+            {
+                locker.Exit();
+            }
 
             ClearWorkCollections();
-            ResetCancellationToken();
-            canceledEventAlreadyRaised = false;
         }
     }
 
@@ -145,13 +158,19 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected void RaiseCanceled()
     {
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             if (canceledEventAlreadyRaised)
                 return;
 
-            Canceled?.Invoke(this, EventArgs.Empty);
             canceledEventAlreadyRaised = true;
+            Canceled?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            locker.Exit();
         }
     }
 
@@ -169,13 +188,13 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     {
         foreach (Action job in actionJobs)
         {
-            await semaphore.WaitAsync();
+            await semaphore.WaitAsync(CancellationToken);
             AddJobActionToSemaphore(job);
         }
 
         foreach (Func<Task> job in taskJobs)
         {
-            await semaphore.WaitAsync();
+            await semaphore.WaitAsync(CancellationToken);
             AddJobTaskToSemaphore(job);
         }
 
@@ -193,10 +212,6 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         tasks.Clear();
     }
 
-    protected void ResetCancellationToken()
-    {
-        cancellationTokenSource = new();
-    }
 
     protected void ThrowIfDisposed()
     {
@@ -246,7 +261,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         {
             if (CancellationToken.IsCancellationRequested)
             {
-                cancellationTokenSource.Cancel();
+                await cancellationTokenSource.CancelAsync();
                 RaiseCanceled();
                 return;
             }

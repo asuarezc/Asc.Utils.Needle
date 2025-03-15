@@ -1,21 +1,23 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
+[SuppressMessage("ReSharper", "MethodSupportsCancellation")]
 internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeedleWorkerSlim
 {
     private bool disposedValue;
-    private bool canceledEventAlreadyRaised = false;
-    private bool isRunning = false;
-    private CancellationTokenSource cancellationTokenSource = new();
+    private bool canceledEventAlreadyRaised;
+    private bool isRunning;
 
-    private static readonly object lockObject = new();
+    private static readonly Lock locker = new();
     private readonly ConcurrentBag<Action> actionJobs = [];
     private readonly ConcurrentBag<Func<Task>> taskJobs = [];
     private readonly ConcurrentBag<Exception> exceptions = [];
-    private readonly List<Task> tasks = [];
+
+    protected CancellationTokenSource cancellationTokenSource = new();
 
     public ParallelWorkerSlim() : this(true) { }
 
@@ -32,7 +34,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         }
     }
 
-    public bool CancelPendingJobsIfAnyOtherFails { get; private set; } = cancelPendingJobsIfAnyOtherFails;
+    public bool CancelPendingJobsIfAnyOtherFails { get; } = cancelPendingJobsIfAnyOtherFails;
 
     public virtual void AddJob(Action job)
     {
@@ -67,28 +69,38 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             ThrowIfRunning();
             isRunning = true;
+        }
+        finally
+        {
+            locker.Exit();
         }
 
         try
         {
             await RunInternalAsync();
         }
-        catch (Exception)
-        {
-            throw;
-        }
         finally
         {
-            lock (lockObject)
+            locker.Enter();
+
+            try
+            {
                 isRunning = false;
+                canceledEventAlreadyRaised = false;
+                cancellationTokenSource = new CancellationTokenSource();
+            }
+            finally
+            {
+                locker.Exit();
+            }
 
             ClearWorkCollections();
-            ResetCancellationToken();
-            canceledEventAlreadyRaised = false;
         }
     }
 
@@ -98,10 +110,9 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
 
     protected async Task RunInternalAsync()
     {
-        IEnumerable<Task> tasks = Enumerable.Concat(
-            actionJobs.Select(GetTaskFromJob),
-            taskJobs.Select(GetTaskFromFunc)
-        );
+        IEnumerable<Task> tasks = actionJobs
+            .Select(GetTaskFromJob)
+            .Concat(taskJobs.Select(GetTaskFromFunc));
 
         await Task.WhenAll(tasks);
 
@@ -114,12 +125,6 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         actionJobs.Clear();
         taskJobs.Clear();
         exceptions.Clear();
-        tasks.Clear();
-    }
-
-    protected void ResetCancellationToken()
-    {
-        cancellationTokenSource = new();
     }
 
     protected void ThrowIfDisposed()
@@ -161,13 +166,19 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
 
     protected void RaiseCanceled()
     {
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             if (canceledEventAlreadyRaised)
                 return;
 
             canceledEventAlreadyRaised = true;
             Canceled?.Invoke(this, EventArgs.Empty);
+        }
+        finally
+        {
+            locker.Exit();
         }
     }
 
@@ -203,7 +214,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
             {
                 if (CancellationToken.IsCancellationRequested)
                 {
-                    cancellationTokenSource.Cancel();
+                    await cancellationTokenSource.CancelAsync();
                     RaiseCanceled();
                     return;
                 }

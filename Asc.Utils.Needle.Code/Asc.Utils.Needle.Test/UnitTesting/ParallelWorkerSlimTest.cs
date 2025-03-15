@@ -161,7 +161,9 @@ public class ParallelWorkerSlimTest
 
         worker.AddJob(() =>
         {
+            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
+            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
         });
 
@@ -192,6 +194,19 @@ public class ParallelWorkerSlimTest
     #region CancelPendingJobsIfAnyOtherFails and CancellationToken property
 
     [Fact]
+    public void CancelPendingJobsIfAnyOtherFails()
+    {
+        using INeedleWorkerSlim workerTrue =
+            Pincushion.Instance.GetParallelWorkerSlim(cancelPendingJobsIfAnyOtherFails: true);
+
+        using INeedleWorkerSlim workerFalse =
+            Pincushion.Instance.GetParallelWorkerSlim(cancelPendingJobsIfAnyOtherFails: false);
+
+        Assert.True(workerTrue.CancelPendingJobsIfAnyOtherFails);
+        Assert.False(workerFalse.CancelPendingJobsIfAnyOtherFails);
+    }
+
+    [Fact]
     public async Task CancelPendingJobsIfAnyOtherFails_WhenTrue()
     {
         List<object> objects = [];
@@ -202,6 +217,7 @@ public class ParallelWorkerSlimTest
 
         worker.AddJob(() =>
         {
+            // ReSharper disable once ConvertToLambdaExpression
             throw new InvalidOperationException();
         });
 
@@ -209,6 +225,7 @@ public class ParallelWorkerSlimTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
+            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -226,15 +243,13 @@ public class ParallelWorkerSlimTest
             cancelPendingJobsIfAnyOtherFails: false
         );
 
-        worker.AddJob(() =>
-        {
-            throw new InvalidOperationException();
-        });
+        worker.AddJob(() => throw new InvalidOperationException());
 
         worker.AddJob(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
+            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -253,12 +268,6 @@ public class ParallelWorkerSlimTest
         bool wasCanceled = false;
         INeedleWorkerSlim worker = Pincushion.Instance.GetParallelWorkerSlim();
 
-        void OnCanceled(object? sender, EventArgs e)
-        {
-            wasCanceled = true;
-            worker.Canceled -= OnCanceled;
-        }
-
         worker.Canceled += OnCanceled;
         worker.AddJob(worker.Cancel);
 
@@ -272,6 +281,14 @@ public class ParallelWorkerSlimTest
         }
 
         Assert.True(wasCanceled);
+        return;
+
+        void OnCanceled(object? sender, EventArgs e)
+        {
+            wasCanceled = true;
+            // ReSharper disable once AccessToDisposedClosure
+            worker.Canceled -= OnCanceled;
+        }
     }
 
     #endregion
