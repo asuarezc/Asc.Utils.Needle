@@ -6,10 +6,9 @@ namespace Asc.Utils.Needle.Implementation;
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 {
-    private static readonly object lockObject = new();
+    private static readonly Lock locker = new();
 
-    public SemaphoreWorker()
-        : base() { }
+    public SemaphoreWorker() {}
 
     public SemaphoreWorker(int numberOfThreads)
         : base(numberOfThreads) { }
@@ -42,10 +41,16 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             ThrowIfRunning();
             IsRunning = true;
+        }
+        finally
+        {
+            locker.Exit();
         }
 
         NotifyPropertyChanged(nameof(IsRunning));
@@ -54,18 +59,22 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         {
             await RunInternalAsync();
         }
-        catch (Exception)
-        {
-            throw;
-        }
         finally
         {
-            lock (lockObject)
+            locker.Enter();
+
+            try
+            {
                 IsRunning = false;
+                cancellationTokenSource = new CancellationTokenSource();
+            }
+            finally
+            {
+                locker.Exit();
+            }
 
             NotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
-            ResetCancellationToken();
         }
     }
 
@@ -73,8 +82,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        lock (lockObject)
-            TotalJobsCount++;
+        locker.Enter();
+
+        try { TotalJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -83,8 +94,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        lock (lockObject)
-            TotalJobsCount++;
+        locker.Enter();
+
+        try { TotalJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -103,8 +116,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 job();
 
-                lock (lockObject)
-                    SuccessfullyCompletedJobsCount++;
+                locker.Enter();
+
+                try { SuccessfullyCompletedJobsCount++; }
+                finally { locker.Exit(); }
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -133,8 +148,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 await job();
 
-                lock (lockObject)
-                    SuccessfullyCompletedJobsCount++;
+                locker.Enter();
+
+                try { SuccessfullyCompletedJobsCount++; }
+                finally { locker.Exit(); }
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -153,8 +170,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.ManageException(ex);
 
-        lock (lockObject)
-            FaultedJobsCount++;
+        locker.Enter();
+
+        try { FaultedJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);

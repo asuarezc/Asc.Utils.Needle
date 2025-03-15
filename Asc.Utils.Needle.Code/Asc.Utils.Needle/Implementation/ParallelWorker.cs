@@ -7,7 +7,7 @@ namespace Asc.Utils.Needle.Implementation;
 internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
     : ParallelWorkerSlim(cancelPendingJobsIfAnyOtherFails), INeedleWorker
 {
-    private static readonly object lockObject = new();
+    private static readonly Lock locker = new();
 
     public ParallelWorker() : this(true) { }
 
@@ -33,10 +33,16 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        lock (lockObject)
+        locker.Enter();
+
+        try
         {
             ThrowIfRunning();
             IsRunning = true;
+        }
+        finally
+        {
+            locker.Exit();
         }
 
         NotifyPropertyChanged(nameof(IsRunning));
@@ -45,18 +51,22 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
         {
             await RunInternalAsync();
         }
-        catch (Exception)
-        {
-            throw;
-        }
         finally
         {
-            lock (lockObject)
+            locker.Enter();
+
+            try
+            {
                 IsRunning = false;
+                cancellationTokenSource = new CancellationTokenSource();
+            }
+            finally
+            {
+                locker.Exit();
+            }
 
             NotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
-            ResetCancellationToken();
         }
     }
 
@@ -64,8 +74,10 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
     {
         base.AddJob(job);
 
-        lock (lockObject)
-            TotalJobsCount++;
+        locker.Enter();
+
+        try { TotalJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -74,8 +86,10 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
     {
         base.AddJob(job);
 
-        lock (lockObject)
-            TotalJobsCount++;
+        locker.Enter();
+
+        try { TotalJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -94,8 +108,10 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
                 job();
 
-                lock (lockObject)
-                    SuccessfullyCompletedJobsCount++;
+                locker.Enter();
+
+                try { SuccessfullyCompletedJobsCount++; }
+                finally { locker.Exit(); }
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -120,8 +136,10 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
 
                 await job();
 
-                lock (lockObject)
-                    SuccessfullyCompletedJobsCount++;
+                locker.Enter();
+
+                try { SuccessfullyCompletedJobsCount++; }
+                finally { locker.Exit(); }
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -136,8 +154,10 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
     {
         base.ManageException(ex);
 
-        lock (lockObject)
-            FaultedJobsCount++;
+        locker.Enter();
+
+        try { FaultedJobsCount++; }
+        finally { locker.Exit(); }
 
         NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);
