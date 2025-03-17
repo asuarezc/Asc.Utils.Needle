@@ -13,7 +13,7 @@
     <Product>Asc.Utils.Needle</Product>
     <Description>Easy multithreading worker utlity to simplify background operations</Description>
     <Copyright>MIT</Copyright>
-    <PackageTags>Multithreading, Utility, Background Worker</PackageTags>
+    <PackageTags>Multithreading;Utility;Background Worker</PackageTags>
     <PackageIcon>needle.png</PackageIcon>
     <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
