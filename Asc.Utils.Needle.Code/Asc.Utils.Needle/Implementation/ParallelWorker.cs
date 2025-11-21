@@ -4,12 +4,12 @@ using System.Diagnostics;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
-    : ParallelWorkerSlim(cancelPendingJobsIfAnyOtherFails), INeedleWorker
+internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
+    : ParallelWorkerSlim(onJobFailedBehaviour), INeedleWorker
 {
     private static readonly Lock locker = new();
 
-    public ParallelWorker() : this(true) { }
+    public ParallelWorker() : this(OnJobFailedBehaviour.CancelPendingJobs) { }
 
     #region INeedleWorker implementation
 
@@ -58,7 +58,7 @@ internal class ParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
             try
             {
                 IsRunning = false;
-                cancellationTokenSource = new CancellationTokenSource();
+                _cancellationTokenSource = new CancellationTokenSource();
             }
             finally
             {

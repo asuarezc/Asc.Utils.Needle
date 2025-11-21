@@ -14,67 +14,71 @@ public interface IPincushion
 
     /// <summary>
     /// Gets a semaphore worker slim implementation with Environment.ProcessorCount available threads.
+    /// By default, <see cref="INeedleWorkerSlim.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     INeedleWorkerSlim GetSemaphoreWorkerSlim();
 
     /// <summary>
     /// Gets a semaphore worker slim implementation with a certain amount of available threads.
+    /// By default, <see cref="INeedleWorkerSlim.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     /// <param name="maxThreads">Number of threads to use with semaphore.</param>
     INeedleWorkerSlim GetSemaphoreWorkerSlim(int maxThreads);
 
     /// <summary>
     /// Gets a semaphore worker slim implementation with Environment.ProcessorCount available threads.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorkerSlim GetSemaphoreWorkerSlim(bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorkerSlim GetSemaphoreWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour);
 
     /// <summary>
     /// Gets a semaphore worker slim implementation with a certain amount of available threads.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
     /// <param name="maxThreads">Number of threads to use with semaphore.</param>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorkerSlim GetSemaphoreWorkerSlim(int maxThreads, bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorkerSlim GetSemaphoreWorkerSlim(int maxThreads, OnJobFailedBehaviour onJobFailedBehaviour);
 
     /// <summary>
     /// Gets a semaphore worker implementation with Environment.ProcessorCount available threads.
+    /// By default, <see cref="INeedleWorker.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     INeedleWorker GetSemaphoreWorker();
 
     /// <summary>
     /// Gets a semaphore worker implementation with a certain amount of available threads.
+    /// By default, <see cref="INeedleWorker.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     /// <param name="maxThreads">Number of threads to use with semaphore.</param>
     INeedleWorker GetSemaphoreWorker(int maxThreads);
 
     /// <summary>
     /// Gets a semaphore worker implementation with Environment.ProcessorCount available threads.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorker GetSemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorker GetSemaphoreWorker(OnJobFailedBehaviour onJobFailedBehaviour);
 
     /// <summary>
     /// Gets a semaphore worker implementation with a certain amount of available threads.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
     /// <param name="maxThreads">Number of threads to use with semaphore.</param>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorker GetSemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorker GetSemaphoreWorker(int maxThreads, OnJobFailedBehaviour onJobFailedBehaviour);
 
     #endregion
 
@@ -87,13 +91,13 @@ public interface IPincushion
 
     /// <summary>
     /// Gets a parallel worker slim implementation.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorkerSlim GetParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorkerSlim GetParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour);
 
     /// <summary>
     /// Gets a parallel worker implementation.
@@ -102,13 +106,13 @@ public interface IPincushion
 
     /// <summary>
     /// Gets a parallel worker implementation.
-    /// If your jobs are codependent, set <paramref name="cancelPendingJobsIfAnyOtherFails"/> to true.
+    /// If your jobs are not codependent, set <paramref name="onJobFailedBehaviour"/> to <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>.
     /// </summary>
-    /// <param name="cancelPendingJobsIfAnyOtherFails">
-    /// If true and a job fails, pending jobs will not be executed.
-    /// In progress jobs will be canceled by checking cancellation token.
+    /// <param name="onJobFailedBehaviour">
+    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and a job fails, pending jobs will not be executed,
+    /// otherwise, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>, pending jobs will be executed.
     /// </param>
-    INeedleWorker GetParallelWorker(bool cancelPendingJobsIfAnyOtherFails);
+    INeedleWorker GetParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour);
 
     #endregion
 }

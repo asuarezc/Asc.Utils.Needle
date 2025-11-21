@@ -161,9 +161,7 @@ public class SemaphoreWorkerSlimTest
 
         worker.AddJob(() =>
         {
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
         });
 
@@ -196,14 +194,14 @@ public class SemaphoreWorkerSlimTest
     [Fact]
     public void CancelPendingJobsIfAnyOtherFails()
     {
-        using INeedleWorkerSlim workerTrue =
-            Pincushion.Instance.GetSemaphoreWorkerSlim(cancelPendingJobsIfAnyOtherFails: true, maxThreads: 5);
+        using INeedleWorkerSlim workerCancelPendingJobs =
+            Pincushion.Instance.GetSemaphoreWorkerSlim(maxThreads: 5, OnJobFailedBehaviour.CancelPendingJobs);
 
-        using INeedleWorkerSlim workerFalse =
-            Pincushion.Instance.GetSemaphoreWorkerSlim(cancelPendingJobsIfAnyOtherFails: false);
+        using INeedleWorkerSlim workerContinueRunningPendingJobs =
+            Pincushion.Instance.GetSemaphoreWorkerSlim(OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
-        Assert.True(workerTrue.CancelPendingJobsIfAnyOtherFails);
-        Assert.False(workerFalse.CancelPendingJobsIfAnyOtherFails);
+        Assert.Equal(OnJobFailedBehaviour.CancelPendingJobs, workerCancelPendingJobs.OnJobFailedBehaviour);
+        Assert.Equal(OnJobFailedBehaviour.ContinueRunningPendingJobs, workerContinueRunningPendingJobs.OnJobFailedBehaviour);
     }
 
     [Fact]
@@ -212,7 +210,7 @@ public class SemaphoreWorkerSlimTest
         List<object> objects = [];
 
         using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(
-            cancelPendingJobsIfAnyOtherFails: true
+            onJobFailedBehaviour: OnJobFailedBehaviour.CancelPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -221,7 +219,6 @@ public class SemaphoreWorkerSlimTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -236,7 +233,7 @@ public class SemaphoreWorkerSlimTest
         List<object> objects = [];
 
         using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -245,7 +242,6 @@ public class SemaphoreWorkerSlimTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -282,7 +278,6 @@ public class SemaphoreWorkerSlimTest
         void OnCanceled(object? sender, EventArgs e)
         {
             wasCanceled = true;
-            // ReSharper disable once AccessToDisposedClosure
             worker.Canceled -= OnCanceled;
         }
     }

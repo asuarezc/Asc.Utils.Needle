@@ -1,25 +1,23 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
 
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
-[SuppressMessage("ReSharper", "MethodSupportsCancellation")]
-internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeedleWorkerSlim
+internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : INeedleWorkerSlim
 {
-    private bool disposedValue;
-    private bool canceledEventAlreadyRaised;
-    private bool isRunning;
+    private bool _disposedValue;
+    private bool _canceledEventAlreadyRaised;
+    private bool _isRunning;
 
-    private static readonly Lock locker = new();
-    private readonly ConcurrentBag<Action> actionJobs = [];
-    private readonly ConcurrentBag<Func<Task>> taskJobs = [];
-    private readonly ConcurrentBag<Exception> exceptions = [];
+    private static readonly Lock _locker = new();
+    private readonly ConcurrentBag<Action> _actionJobs = [];
+    private readonly ConcurrentBag<Func<Task>> _taskJobs = [];
+    private readonly ConcurrentBag<Exception> _exceptions = [];
 
-    protected CancellationTokenSource cancellationTokenSource = new();
+    protected CancellationTokenSource _cancellationTokenSource = new();
 
-    public ParallelWorkerSlim() : this(true) { }
+    public ParallelWorkerSlim() : this(OnJobFailedBehaviour.CancelPendingJobs) { }
 
     #region INeedleWorkerSlim implementation
 
@@ -30,11 +28,11 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         get
         {
             ThrowIfDisposed();
-            return cancellationTokenSource.Token;
+            return _cancellationTokenSource.Token;
         }
     }
 
-    public bool CancelPendingJobsIfAnyOtherFails { get; } = cancelPendingJobsIfAnyOtherFails;
+    public OnJobFailedBehaviour OnJobFailedBehaviour { get; } = onJobFailedBehaviour;
 
     public virtual void AddJob(Action job)
     {
@@ -42,7 +40,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        actionJobs.Add(job);
+        _actionJobs.Add(job);
     }
 
     public virtual void AddJob(Func<Task> job)
@@ -51,7 +49,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        taskJobs.Add(job);
+        _taskJobs.Add(job);
     }
 
     public void Cancel()
@@ -60,7 +58,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         ThrowIfNotRunning();
         ThrowIfCancellationAlreadyRequested();
 
-        cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Cancel();
         RaiseCanceled();
     }
 
@@ -69,16 +67,10 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        locker.Enter();
-
-        try
+        using (_locker.EnterScope())
         {
             ThrowIfRunning();
-            isRunning = true;
-        }
-        finally
-        {
-            locker.Exit();
+            _isRunning = true;
         }
 
         try
@@ -87,17 +79,11 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
         }
         finally
         {
-            locker.Enter();
-
-            try
+            using (_locker.EnterScope())
             {
-                isRunning = false;
-                canceledEventAlreadyRaised = false;
-                cancellationTokenSource = new CancellationTokenSource();
-            }
-            finally
-            {
-                locker.Exit();
+                _isRunning = false;
+                _canceledEventAlreadyRaised = false;
+                _cancellationTokenSource = new CancellationTokenSource();
             }
 
             ClearWorkCollections();
@@ -110,37 +96,37 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
 
     protected async Task RunInternalAsync()
     {
-        IEnumerable<Task> tasks = actionJobs
+        IEnumerable<Task> tasks = _actionJobs
             .Select(GetTaskFromJob)
-            .Concat(taskJobs.Select(GetTaskFromFunc));
+            .Concat(_taskJobs.Select(GetTaskFromFunc));
 
         await Task.WhenAll(tasks);
 
-        if (!exceptions.IsEmpty)
-            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", exceptions);
+        if (!_exceptions.IsEmpty)
+            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
     }
 
     protected void ClearWorkCollections()
     {
-        actionJobs.Clear();
-        taskJobs.Clear();
-        exceptions.Clear();
+        _actionJobs.Clear();
+        _taskJobs.Clear();
+        _exceptions.Clear();
     }
 
     protected void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(disposedValue, this);
+        ObjectDisposedException.ThrowIf(_disposedValue, this);
     }
 
     protected virtual void ThrowIfRunning()
     {
-        if (isRunning)
+        if (_isRunning)
             throw new InvalidOperationException("Cannot do this operation while running");
     }
 
     protected virtual void ThrowIfNotRunning()
     {
-        if (!isRunning)
+        if (!_isRunning)
             throw new InvalidOperationException("Cannot do this operation while not running");
     }
 
@@ -152,33 +138,27 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
 
     protected void ThrowIfThereIsNoJobsToRun()
     {
-        if (actionJobs.IsEmpty && taskJobs.IsEmpty)
+        if (_actionJobs.IsEmpty && _taskJobs.IsEmpty)
             throw new InvalidOperationException("Nothing to run. Add jobs before running a worker");
     }
 
     protected virtual void ManageException(Exception ex)
     {
-        if (!CancellationToken.IsCancellationRequested && CancelPendingJobsIfAnyOtherFails)
+        if (!CancellationToken.IsCancellationRequested && OnJobFailedBehaviour == OnJobFailedBehaviour.CancelPendingJobs)
             Cancel();
 
-        exceptions.Add(ex);
+        _exceptions.Add(ex);
     }
 
     protected void RaiseCanceled()
     {
-        locker.Enter();
-
-        try
+        using (_locker.EnterScope())
         {
-            if (canceledEventAlreadyRaised)
+            if (_canceledEventAlreadyRaised)
                 return;
 
-            canceledEventAlreadyRaised = true;
+            _canceledEventAlreadyRaised = true;
             Canceled?.Invoke(this, EventArgs.Empty);
-        }
-        finally
-        {
-            locker.Exit();
         }
     }
 
@@ -192,7 +172,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
             {
                 if (CancellationToken.IsCancellationRequested)
                 {
-                    cancellationTokenSource.Cancel();
+                    _cancellationTokenSource.Cancel();
                     RaiseCanceled();
                     return;
                 }
@@ -214,7 +194,7 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
             {
                 if (CancellationToken.IsCancellationRequested)
                 {
-                    await cancellationTokenSource.CancelAsync();
+                    await _cancellationTokenSource.CancelAsync();
                     RaiseCanceled();
                     return;
                 }
@@ -234,23 +214,23 @@ internal class ParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails) : INeed
     {
         ThrowIfDisposed();
 
-        return $"IsRunning = {isRunning}";
+        return $"IsRunning = {_isRunning}";
     }
 
     #region IDisposable implementation
 
     protected virtual void Dispose(bool disposing)
     {
-        if (disposedValue)
+        if (_disposedValue)
             return;
 
-        if (isRunning)
-            throw new InvalidOperationException("Cannot do this operation while running");
+        if (_isRunning)
+            throw new InvalidOperationException("Cannot dispose while running");
 
         if (disposing)
-            cancellationTokenSource.Dispose();
+            _cancellationTokenSource.Dispose();
 
-        disposedValue = true;
+        _disposedValue = true;
     }
 
     public void Dispose()

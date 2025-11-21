@@ -27,14 +27,14 @@ public sealed class Pincushion : IPincushion
         return new SemaphoreWorkerSlim(maxThreads);
     }
 
-    public INeedleWorkerSlim GetSemaphoreWorkerSlim(bool cancelPendingJobsIfAnyOtherFails)
+    public INeedleWorkerSlim GetSemaphoreWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new SemaphoreWorkerSlim(cancelPendingJobsIfAnyOtherFails);
+        return new SemaphoreWorkerSlim(onJobFailedBehaviour);
     }
-
-    public INeedleWorkerSlim GetSemaphoreWorkerSlim(int maxThreads, bool cancelPendingJobsIfAnyOtherFails)
+     
+    public INeedleWorkerSlim GetSemaphoreWorkerSlim(int maxThreads, OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new SemaphoreWorkerSlim(maxThreads, cancelPendingJobsIfAnyOtherFails);
+        return new SemaphoreWorkerSlim(maxThreads, onJobFailedBehaviour);
     }
 
     public INeedleWorker GetSemaphoreWorker()
@@ -47,14 +47,14 @@ public sealed class Pincushion : IPincushion
         return new SemaphoreWorker(maxThreads);
     }
 
-    public INeedleWorker GetSemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails)
+    public INeedleWorker GetSemaphoreWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new SemaphoreWorker(cancelPendingJobsIfAnyOtherFails);
+        return new SemaphoreWorker(onJobFailedBehaviour);
     }
 
-    public INeedleWorker GetSemaphoreWorker(int maxThreads, bool cancelPendingJobsIfAnyOtherFails)
+    public INeedleWorker GetSemaphoreWorker(int maxThreads, OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new SemaphoreWorker(maxThreads, cancelPendingJobsIfAnyOtherFails);
+        return new SemaphoreWorker(maxThreads, onJobFailedBehaviour);
     }
 
     public INeedleWorkerSlim GetParallelWorkerSlim()
@@ -62,9 +62,9 @@ public sealed class Pincushion : IPincushion
         return new ParallelWorkerSlim();
     }
 
-    public INeedleWorkerSlim GetParallelWorkerSlim(bool cancelPendingJobsIfAnyOtherFails)
+    public INeedleWorkerSlim GetParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new ParallelWorkerSlim(cancelPendingJobsIfAnyOtherFails);
+        return new ParallelWorkerSlim(onJobFailedBehaviour);
     }
 
     public INeedleWorker GetParallelWorker()
@@ -72,8 +72,8 @@ public sealed class Pincushion : IPincushion
         return new ParallelWorker();
     }
 
-    public INeedleWorker GetParallelWorker(bool cancelPendingJobsIfAnyOtherFails)
+    public INeedleWorker GetParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new ParallelWorker(cancelPendingJobsIfAnyOtherFails);
+        return new ParallelWorker(onJobFailedBehaviour);
     }
 }

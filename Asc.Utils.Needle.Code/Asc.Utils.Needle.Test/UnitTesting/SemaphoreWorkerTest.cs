@@ -150,9 +150,7 @@ public class SemaphoreWorkerTest
 
         worker.AddJob(() =>
         {
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
         });
 
@@ -181,14 +179,14 @@ public class SemaphoreWorkerTest
     [Fact]
     public void CancelPendingJobsIfAnyOtherFails()
     {
-        using INeedleWorker workerTrue =
-            Pincushion.Instance.GetSemaphoreWorker(cancelPendingJobsIfAnyOtherFails: true, maxThreads: 5);
+        using INeedleWorkerSlim workerCancelPendingJobs =
+            Pincushion.Instance.GetSemaphoreWorker(maxThreads: 5, OnJobFailedBehaviour.CancelPendingJobs);
 
-        using INeedleWorker workerFalse =
-            Pincushion.Instance.GetSemaphoreWorker(cancelPendingJobsIfAnyOtherFails: false);
+        using INeedleWorkerSlim workerContinueRunningPendingJobs =
+            Pincushion.Instance.GetSemaphoreWorker(OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
-        Assert.True(workerTrue.CancelPendingJobsIfAnyOtherFails);
-        Assert.False(workerFalse.CancelPendingJobsIfAnyOtherFails);
+        Assert.Equal(OnJobFailedBehaviour.CancelPendingJobs, workerCancelPendingJobs.OnJobFailedBehaviour);
+        Assert.Equal(OnJobFailedBehaviour.ContinueRunningPendingJobs, workerContinueRunningPendingJobs.OnJobFailedBehaviour);
     }
 
     [Fact]
@@ -197,7 +195,7 @@ public class SemaphoreWorkerTest
         List<object> objects = [];
 
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
-            cancelPendingJobsIfAnyOtherFails: true
+            onJobFailedBehaviour: OnJobFailedBehaviour.CancelPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -206,7 +204,6 @@ public class SemaphoreWorkerTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -221,7 +218,7 @@ public class SemaphoreWorkerTest
         List<object> objects = [];
 
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -230,7 +227,6 @@ public class SemaphoreWorkerTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -263,7 +259,6 @@ public class SemaphoreWorkerTest
         void OnCanceled(object? sender, EventArgs e)
         {
             wasCanceled = true;
-            // ReSharper disable once AccessToDisposedClosure
             worker.Canceled -= OnCanceled;
         }
     }
@@ -321,7 +316,7 @@ public class SemaphoreWorkerTest
         ConcurrentBag<object> bag = [];
 
         INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         Assert.Equal(0, worker.FaultedJobsCount);
@@ -397,11 +392,10 @@ public class SemaphoreWorkerTest
         bool successfullyCompletedJobsCountChecked = false;
         bool faultedJobsCountChecked = false;
 
-        // ReSharper disable once CollectionNeverQueried.Local
         ConcurrentBag<object> bag = [];
 
         INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         worker.PropertyChanged += OnPropertyChanged;

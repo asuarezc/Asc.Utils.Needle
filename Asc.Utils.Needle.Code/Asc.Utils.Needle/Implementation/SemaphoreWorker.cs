@@ -6,18 +6,18 @@ namespace Asc.Utils.Needle.Implementation;
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 {
-    private static readonly Lock locker = new();
+    private static readonly Lock _locker = new();
 
     public SemaphoreWorker() {}
 
     public SemaphoreWorker(int numberOfThreads)
         : base(numberOfThreads) { }
 
-    public SemaphoreWorker(bool cancelPendingJobsIfAnyOtherFails)
-        : base(cancelPendingJobsIfAnyOtherFails) { }
+    public SemaphoreWorker(OnJobFailedBehaviour onJobFailedBehaviour)
+        : base(onJobFailedBehaviour) { }
 
-    public SemaphoreWorker(int numberOfThreads, bool cancelPendingJobsIfAnyOtherFails)
-        : base(numberOfThreads, cancelPendingJobsIfAnyOtherFails) { }
+    public SemaphoreWorker(int numberOfThreads, OnJobFailedBehaviour onJobFailedBehaviour)
+        : base(numberOfThreads, onJobFailedBehaviour) { }
 
     #region INeedleWorker implementation
 
@@ -41,16 +41,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        locker.Enter();
-
-        try
+        using (_locker.EnterScope())
         {
             ThrowIfRunning();
             IsRunning = true;
-        }
-        finally
-        {
-            locker.Exit();
         }
 
         NotifyPropertyChanged(nameof(IsRunning));
@@ -61,16 +55,10 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         }
         finally
         {
-            locker.Enter();
-
-            try
+            using (_locker.EnterScope())
             {
                 IsRunning = false;
-                cancellationTokenSource = new CancellationTokenSource();
-            }
-            finally
-            {
-                locker.Exit();
+                _cancellationTokenSource = new CancellationTokenSource();
             }
 
             NotifyPropertyChanged(nameof(IsRunning));
@@ -82,10 +70,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        locker.Enter();
-
-        try { TotalJobsCount++; }
-        finally { locker.Exit(); }
+        using (_locker.EnterScope())
+            TotalJobsCount++;
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -94,10 +80,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        locker.Enter();
-
-        try { TotalJobsCount++; }
-        finally { locker.Exit(); }
+        using (_locker.EnterScope())
+            TotalJobsCount++;
 
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
@@ -116,10 +100,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 job();
 
-                locker.Enter();
-
-                try { SuccessfullyCompletedJobsCount++; }
-                finally { locker.Exit(); }
+                using (_locker.EnterScope())
+                    SuccessfullyCompletedJobsCount++;
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -148,10 +130,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
                 await job();
 
-                locker.Enter();
-
-                try { SuccessfullyCompletedJobsCount++; }
-                finally { locker.Exit(); }
+                using (_locker.EnterScope())
+                    SuccessfullyCompletedJobsCount++;
 
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
@@ -170,10 +150,8 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.ManageException(ex);
 
-        locker.Enter();
-
-        try { FaultedJobsCount++; }
-        finally { locker.Exit(); }
+        using (_locker.EnterScope())
+            FaultedJobsCount++;
 
         NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);

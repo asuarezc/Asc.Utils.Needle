@@ -150,9 +150,7 @@ public class ParallelWorkerTest
 
         worker.AddJob(() =>
         {
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
-            // ReSharper disable once AccessToDisposedClosure
             worker.Cancel();
         });
 
@@ -181,14 +179,14 @@ public class ParallelWorkerTest
     [Fact]
     public void CancelPendingJobsIfAnyOtherFails()
     {
-        using INeedleWorker workerTrue =
-            Pincushion.Instance.GetParallelWorker(cancelPendingJobsIfAnyOtherFails: true);
+        using INeedleWorker workerCancelPendingJobs =
+            Pincushion.Instance.GetParallelWorker(OnJobFailedBehaviour.CancelPendingJobs);
 
-        using INeedleWorker workerFalse =
-            Pincushion.Instance.GetParallelWorker(cancelPendingJobsIfAnyOtherFails: false);
+        using INeedleWorker workerContinueRunningPendingJobs =
+            Pincushion.Instance.GetParallelWorker(OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
-        Assert.True(workerTrue.CancelPendingJobsIfAnyOtherFails);
-        Assert.False(workerFalse.CancelPendingJobsIfAnyOtherFails);
+        Assert.Equal(OnJobFailedBehaviour.CancelPendingJobs, workerCancelPendingJobs.OnJobFailedBehaviour);
+        Assert.Equal(OnJobFailedBehaviour.ContinueRunningPendingJobs, workerContinueRunningPendingJobs.OnJobFailedBehaviour);
     }
 
     [Fact]
@@ -197,7 +195,7 @@ public class ParallelWorkerTest
         List<object> objects = [];
 
         using INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
-            cancelPendingJobsIfAnyOtherFails: true
+            onJobFailedBehaviour: OnJobFailedBehaviour.CancelPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -206,7 +204,6 @@ public class ParallelWorkerTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -221,7 +218,7 @@ public class ParallelWorkerTest
         List<object> objects = [];
 
         using INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         worker.AddJob(() => throw new InvalidOperationException());
@@ -230,7 +227,6 @@ public class ParallelWorkerTest
         {
             await Task.Delay(TimeSpan.FromSeconds(1)); //Wait until other job throws exception
 
-            // ReSharper disable once AccessToDisposedClosure
             if (!worker.CancellationToken.IsCancellationRequested)
                 objects.Add(new object());
         });
@@ -245,11 +241,9 @@ public class ParallelWorkerTest
         bool wasCanceled = false;
         INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
 
-        // ReSharper disable once MoveLocalFunctionAfterJumpStatement
         void OnCanceled(object? sender, EventArgs e)
         {
             wasCanceled = true;
-            // ReSharper disable once AccessToDisposedClosure
             worker.Canceled -= OnCanceled;
         }
 
@@ -321,7 +315,7 @@ public class ParallelWorkerTest
         ConcurrentBag<object> bag = [];
 
         INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         Assert.Equal(0, worker.FaultedJobsCount);
@@ -397,11 +391,10 @@ public class ParallelWorkerTest
         bool successfullyCompletedJobsCountChecked = false;
         bool faultedJobsCountChecked = false;
 
-        // ReSharper disable once CollectionNeverQueried.Local
         ConcurrentBag<object> bag = [];
 
         INeedleWorker worker = Pincushion.Instance.GetParallelWorker(
-            cancelPendingJobsIfAnyOtherFails: false
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs
         );
 
         worker.PropertyChanged += OnPropertyChanged;

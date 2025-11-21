@@ -19,16 +19,17 @@
 
         /// <summary>
         /// You can propagate this token in your jobs so that they can be canceled, either when a cancellation is requested
-        /// or when CancelPendingJobsIfAnyOtherFails is true and some job throws an exception.
+        /// or when CancelPendingJobsIfAnyOtherFails is true and some job throws an exception.      
         /// </summary>
         CancellationToken CancellationToken { get; }
 
         /// <summary>
-        /// If true and a job fails, pending jobs will not be executed.
-        /// Running jobs can check CancellationToken.IsCancellationRequested to be canceled as well.
-        /// It is true by default but you can change that, if your jobs do not have dependencies on each other.
+        /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and any job fails, pending jobs that are not currently
+        /// in progress will be canceled. On the other hand, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>,
+        /// pending jobs will continue running even if any job fails.
+        /// Default value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
         /// </summary>
-        bool CancelPendingJobsIfAnyOtherFails { get; }
+        OnJobFailedBehaviour OnJobFailedBehaviour { get; }
 
         /// <summary>
         /// Request cancellation to cancel pending jobs that are not currently in progress.
