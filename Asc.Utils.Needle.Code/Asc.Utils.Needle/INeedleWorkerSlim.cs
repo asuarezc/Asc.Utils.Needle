@@ -18,8 +18,9 @@ public interface INeedleWorkerSlim : IDisposable
     event EventHandler Canceled;
 
     /// <summary>
-    /// You can propagate this token in your jobs so that they can be canceled, either when a cancellation is requested
-    /// or when CancelPendingJobsIfAnyOtherFails is true and some job throws an exception.      
+    /// Gets the token that can be used to observe cancellation by added jobs.
+    /// <see cref="CancellationToken.IsCancellationRequested"/> will be true when any job fails and when <see cref="OnJobFailedBehaviour"/> is set to <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
+    /// Also, it will be true when <see cref="Cancel"/> method is invoked.
     /// </summary>
     CancellationToken CancellationToken { get; }
 
