@@ -12,8 +12,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     private static readonly Lock _locker = new();
     private readonly SemaphoreSlim _semaphore;
-    private readonly ConcurrentBag<Action> _actionJobs = [];
-    private readonly ConcurrentBag<Func<Task>> _taskJobs = [];
+    private readonly ConcurrentBag<Func<Task>> _jobs = [];
     private readonly ConcurrentBag<Exception> _exceptions = [];
     private readonly List<Task> _tasks = [];
 
@@ -58,7 +57,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _actionJobs.Add(job);
+        _jobs.Add(async () => await Task.Run(job).ConfigureAwait(false));
     }
 
     public virtual void AddJob(Func<Task> job)
@@ -67,7 +66,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _taskJobs.Add(job);
+        _jobs.Add(job);
     }
 
     public void Cancel()
@@ -93,7 +92,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
         try
         {
-            await RunInternalAsync();
+            await RunInternalAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -112,14 +111,9 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     #region Protected methods
 
-    protected virtual void AddJobActionToSemaphore(Action job)
+    protected virtual void AddJobToSemaphore(Func<Task> job)
     {
-        AddTaskToSemaphore(Task.Run(() => RunJob(job)));
-    }
-
-    protected virtual void AddJobTaskToSemaphore(Func<Task> job)
-    {
-        AddTaskToSemaphore(Task.Run(async () => await RunJobAsync(job)));
+        AddTaskToSemaphore(Task.Run(async () => await RunJobAsync(job).ConfigureAwait(false)));
     }
 
     protected virtual void ManageException(Exception ex)
@@ -166,19 +160,13 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected async Task RunInternalAsync()
     {
-        foreach (Action job in _actionJobs)
+        foreach (Func<Task> job in _jobs)
         {
-            await _semaphore.WaitAsync(CancellationToken);
-            AddJobActionToSemaphore(job);
+            await _semaphore.WaitAsync(CancellationToken).ConfigureAwait(false);
+            AddJobToSemaphore(job);
         }
 
-        foreach (Func<Task> job in _taskJobs)
-        {
-            await _semaphore.WaitAsync(CancellationToken);
-            AddJobTaskToSemaphore(job);
-        }
-
-        await Task.WhenAll(_tasks);
+        await Task.WhenAll(_tasks).ConfigureAwait(false);
 
         if (!_exceptions.IsEmpty)
             throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
@@ -186,12 +174,10 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected void ClearWorkCollections()
     {
-        _actionJobs.Clear();
-        _taskJobs.Clear();
+        _jobs.Clear();
         _exceptions.Clear();
         _tasks.Clear();
     }
-
 
     protected void ThrowIfDisposed()
     {
@@ -206,34 +192,11 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected void ThrowIfThereIsNoJobsToRun()
     {
-        if (_actionJobs.IsEmpty && _taskJobs.IsEmpty)
+        if (_jobs.IsEmpty)
             throw new InvalidOperationException("Nothing to run. Add jobs before running a worker");
     }
 
     #endregion
-
-    private void RunJob(Action job)
-    {
-        try
-        {
-            if (CancellationToken.IsCancellationRequested)
-            {
-                _cancellationTokenSource.Cancel();
-                RaiseCanceled();
-                return;
-            }
-
-            job();
-        }
-        catch (Exception ex)
-        {
-            ManageException(ex);
-        }
-        finally
-        {
-            ReleaseSemaphore();
-        }
-    }
 
     private async Task RunJobAsync(Func<Task> job)
     {
@@ -241,12 +204,12 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         {
             if (CancellationToken.IsCancellationRequested)
             {
-                await _cancellationTokenSource.CancelAsync();
+                await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
                 RaiseCanceled();
                 return;
             }
 
-            await job();
+            await job().ConfigureAwait(false);
         }
         catch (Exception ex)
         {

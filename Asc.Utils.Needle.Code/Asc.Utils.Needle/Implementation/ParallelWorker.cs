@@ -8,6 +8,9 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     : ParallelWorkerSlim(onJobFailedBehaviour), INeedleWorker
 {
     private static readonly Lock locker = new();
+    private int _totalJobsCount = 0;
+    private int _successfullyCompletedJobsCount = 0;
+    private int _failedJobsCount = 0;
 
     public ParallelWorker() : this(OnJobFailedBehaviour.CancelPendingJobs) { }
 
@@ -18,11 +21,11 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
 
     public bool IsRunning { get; private set; }
 
-    public int TotalJobsCount { get; private set; }
+    public int TotalJobsCount => Volatile.Read(ref _totalJobsCount);
 
-    public int SuccessfullyCompletedJobsCount { get; private set; }
+    public int SuccessfullyCompletedJobsCount => Volatile.Read(ref _successfullyCompletedJobsCount);
 
-    public int FaultedJobsCount { get; private set; }
+    public int FaultedJobsCount => Volatile.Read(ref _failedJobsCount);
 
     #endregion
 
@@ -49,7 +52,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
 
         try
         {
-            await RunInternalAsync();
+            await RunInternalAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -74,11 +77,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     {
         base.AddJob(job);
 
-        locker.Enter();
-
-        try { TotalJobsCount++; }
-        finally { locker.Exit(); }
-
+        Interlocked.Increment(ref _totalJobsCount);
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
@@ -86,40 +85,8 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     {
         base.AddJob(job);
 
-        locker.Enter();
-
-        try { TotalJobsCount++; }
-        finally { locker.Exit(); }
-
+        Interlocked.Increment(ref _totalJobsCount);
         NotifyPropertyChanged(nameof(TotalJobsCount));
-    }
-
-    protected override Task GetTaskFromJob(Action job)
-    {
-        return Task.Run(() =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    RaiseCanceled();
-                    return;
-                }
-
-                job();
-
-                locker.Enter();
-
-                try { SuccessfullyCompletedJobsCount++; }
-                finally { locker.Exit(); }
-
-                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-        });
     }
 
     protected override Task GetTaskFromFunc(Func<Task> job)
@@ -134,13 +101,9 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
                     return;
                 }
 
-                await job();
+                await job().ConfigureAwait(false);
 
-                locker.Enter();
-
-                try { SuccessfullyCompletedJobsCount++; }
-                finally { locker.Exit(); }
-
+                Interlocked.Increment(ref _successfullyCompletedJobsCount);
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
@@ -154,11 +117,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     {
         base.ManageException(ex);
 
-        locker.Enter();
-
-        try { FaultedJobsCount++; }
-        finally { locker.Exit(); }
-
+        Interlocked.Increment(ref _failedJobsCount);
         NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);
     }

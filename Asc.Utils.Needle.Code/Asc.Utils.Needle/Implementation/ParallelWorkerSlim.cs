@@ -11,8 +11,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
     private bool _isRunning;
 
     private static readonly Lock _locker = new();
-    private readonly ConcurrentBag<Action> _actionJobs = [];
-    private readonly ConcurrentBag<Func<Task>> _taskJobs = [];
+    private readonly ConcurrentBag<Func<Task>> _jobs = [];
     private readonly ConcurrentBag<Exception> _exceptions = [];
 
     protected CancellationTokenSource _cancellationTokenSource = new();
@@ -40,7 +39,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _actionJobs.Add(job);
+        _jobs.Add(async () => await Task.Run(job).ConfigureAwait(false));
     }
 
     public virtual void AddJob(Func<Task> job)
@@ -49,7 +48,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _taskJobs.Add(job);
+        _jobs.Add(job);
     }
 
     public void Cancel()
@@ -75,7 +74,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
         try
         {
-            await RunInternalAsync();
+            await RunInternalAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -96,11 +95,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     protected async Task RunInternalAsync()
     {
-        IEnumerable<Task> tasks = _actionJobs
-            .Select(GetTaskFromJob)
-            .Concat(_taskJobs.Select(GetTaskFromFunc));
-
-        await Task.WhenAll(tasks);
+        await Task.WhenAll(_jobs.Select(GetTaskFromFunc)).ConfigureAwait(false);
 
         if (!_exceptions.IsEmpty)
             throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
@@ -108,8 +103,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     protected void ClearWorkCollections()
     {
-        _actionJobs.Clear();
-        _taskJobs.Clear();
+        _jobs.Clear();
         _exceptions.Clear();
     }
 
@@ -138,7 +132,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     protected void ThrowIfThereIsNoJobsToRun()
     {
-        if (_actionJobs.IsEmpty && _taskJobs.IsEmpty)
+        if (_jobs.IsEmpty)
             throw new InvalidOperationException("Nothing to run. Add jobs before running a worker");
     }
 
@@ -164,28 +158,6 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     #endregion
 
-    protected virtual Task GetTaskFromJob(Action job)
-    {
-        return Task.Run(() =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    _cancellationTokenSource.Cancel();
-                    RaiseCanceled();
-                    return;
-                }
-
-                job();
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-        });
-    }
-
     protected virtual Task GetTaskFromFunc(Func<Task> job)
     {
         return Task.Run(async () =>
@@ -194,12 +166,12 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
             {
                 if (CancellationToken.IsCancellationRequested)
                 {
-                    await _cancellationTokenSource.CancelAsync();
+                    await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
                     RaiseCanceled();
                     return;
                 }
 
-                await job();
+                await job().ConfigureAwait(false);
             }
             catch (Exception ex)
             {

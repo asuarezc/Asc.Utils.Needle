@@ -6,6 +6,10 @@ namespace Asc.Utils.Needle.Implementation;
 [DebuggerDisplay($"{{{nameof(GetDebuggerDisplay)}(),nq}}")]
 internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 {
+    private int _totalJobsCount = 0;
+    private int _successfullyCompletedJobsCount = 0;
+    private int _faultedJobsCount = 0;
+
     private static readonly Lock _locker = new();
 
     public SemaphoreWorker() {}
@@ -26,11 +30,11 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
     public bool IsRunning { get; private set; }
 
-    public int TotalJobsCount { get; private set; }
+    public int TotalJobsCount => Volatile.Read(ref _totalJobsCount);
 
-    public int SuccessfullyCompletedJobsCount { get; private set; }
+    public int SuccessfullyCompletedJobsCount => Volatile.Read(ref _successfullyCompletedJobsCount);
 
-    public int FaultedJobsCount { get; private set; }
+    public int FaultedJobsCount => Volatile.Read(ref _faultedJobsCount);
 
     #endregion
 
@@ -51,7 +55,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
         try
         {
-            await RunInternalAsync();
+            await RunInternalAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -70,9 +74,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        using (_locker.EnterScope())
-            TotalJobsCount++;
-
+        Interlocked.Increment(ref _totalJobsCount);
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
@@ -80,43 +82,11 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.AddJob(job);
 
-        using (_locker.EnterScope())
-            TotalJobsCount++;
-
+        Interlocked.Increment(ref _totalJobsCount);
         NotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
-    protected override void AddJobActionToSemaphore(Action job)
-    {
-        AddTaskToSemaphore(Task.Run(() =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    RaiseCanceled();
-                    return;
-                }
-
-                job();
-
-                using (_locker.EnterScope())
-                    SuccessfullyCompletedJobsCount++;
-
-                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-            finally
-            {
-                ReleaseSemaphore();
-            }
-        }));
-    }
-
-    protected override void AddJobTaskToSemaphore(Func<Task> job)
+    protected override void AddJobToSemaphore(Func<Task> job)
     {
         AddTaskToSemaphore(Task.Run(async () =>
         {
@@ -128,11 +98,9 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
                     return;
                 }
 
-                await job();
+                await job().ConfigureAwait(false);
 
-                using (_locker.EnterScope())
-                    SuccessfullyCompletedJobsCount++;
-
+                Interlocked.Increment(ref _successfullyCompletedJobsCount);
                 NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
             }
             catch (Exception ex)
@@ -150,9 +118,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     {
         base.ManageException(ex);
 
-        using (_locker.EnterScope())
-            FaultedJobsCount++;
-
+        Interlocked.Increment(ref _faultedJobsCount);
         NotifyPropertyChanged(nameof(FaultedJobsCount));
         JobFaulted?.Invoke(this, ex);
     }
