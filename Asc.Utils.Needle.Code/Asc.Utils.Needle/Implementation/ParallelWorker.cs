@@ -91,7 +91,10 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
 
     protected override Task GetTaskFromFunc(Func<Task> job)
     {
-        return Task.Run(async () =>
+        return GetTaskFromFuncInternal();
+
+        // Wrapper to avoid Task.Run allocation
+        async Task GetTaskFromFuncInternal()
         {
             try
             {
@@ -110,7 +113,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
             {
                 ManageException(ex);
             }
-        });
+        }
     }
 
     protected override void ManageException(Exception ex)

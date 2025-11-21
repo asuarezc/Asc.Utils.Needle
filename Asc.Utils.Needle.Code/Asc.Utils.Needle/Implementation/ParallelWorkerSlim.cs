@@ -11,8 +11,8 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
     private bool _isRunning;
 
     private static readonly Lock _locker = new();
-    private readonly ConcurrentBag<Func<Task>> _jobs = [];
-    private readonly ConcurrentBag<Exception> _exceptions = [];
+    private readonly List<Func<Task>> _jobs = [];
+    private ConcurrentBag<Exception> _exceptions = [];
 
     protected CancellationTokenSource _cancellationTokenSource = new();
 
@@ -39,7 +39,11 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _jobs.Add(async () => await Task.Run(job).ConfigureAwait(false));
+        _jobs.Add(() =>
+        {
+            job();
+            return Task.CompletedTask;
+        });
     }
 
     public virtual void AddJob(Func<Task> job)
@@ -95,7 +99,29 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     protected async Task RunInternalAsync()
     {
-        await Task.WhenAll(_jobs.Select(GetTaskFromFunc)).ConfigureAwait(false);
+        int totalJobs = _jobs.Count;
+
+        if (totalJobs == 0)
+            return;
+
+        var tasks = new Task[totalJobs];
+
+        for (int i = 0; i < totalJobs; i++)
+        {
+            if (CancellationToken.IsCancellationRequested)
+            {
+                RaiseCanceled();
+
+                for (int j = i; j < totalJobs; j++)
+                    tasks[j] = Task.CompletedTask;
+
+                break;
+            }
+
+            tasks[i] = GetTaskFromFunc(_jobs[i]);
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
 
         if (!_exceptions.IsEmpty)
             throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
@@ -104,7 +130,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
     protected void ClearWorkCollections()
     {
         _jobs.Clear();
-        _exceptions.Clear();
+        _exceptions = [];
     }
 
     protected void ThrowIfDisposed()
@@ -132,7 +158,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     protected void ThrowIfThereIsNoJobsToRun()
     {
-        if (_jobs.IsEmpty)
+        if (_jobs.Count == 0)
             throw new InvalidOperationException("Nothing to run. Add jobs before running a worker");
     }
 
@@ -156,29 +182,43 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
         }
     }
 
-    #endregion
-
     protected virtual Task GetTaskFromFunc(Func<Task> job)
     {
-        return Task.Run(async () =>
-        {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
-                    RaiseCanceled();
-                    return;
-                }
+        Task jobTask;
 
-                await job().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
-        });
+        try
+        {
+            jobTask = job();
+        }
+        catch (Exception ex)
+        {
+            ManageException(ex);
+            return Task.CompletedTask;
+        }
+
+        if (jobTask.IsCompleted)
+        {
+            if (jobTask.IsFaulted)
+                ManageException(jobTask.Exception ?? new AggregateException());
+            else if (jobTask.IsCanceled || CancellationToken.IsCancellationRequested)
+                RaiseCanceled();
+
+            return Task.CompletedTask;
+        }
+
+        return jobTask.ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+                ManageException(t.Exception ?? new AggregateException());
+            else if (t.IsCanceled || CancellationToken.IsCancellationRequested)
+                RaiseCanceled();
+        },
+        CancellationToken.None,
+        TaskContinuationOptions.ExecuteSynchronously,
+        TaskScheduler.Default);
     }
+
+    #endregion
 
     private string GetDebuggerDisplay() => ToString();
 
