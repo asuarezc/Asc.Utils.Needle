@@ -88,30 +88,49 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
     protected override void AddJobToSemaphore(Func<Task> job)
     {
-        AddTaskToSemaphore(Task.Run(async () =>
+        Task? task;
+
+        try
+        {
+            if (CancellationToken.IsCancellationRequested)
+            {
+                RaiseCanceled();
+                return;
+            }
+
+            task = job();
+        }
+        catch (Exception ex)
+        {
+            ManageException(ex);
+            ReleaseSemaphore();
+            return;
+        }
+
+        AddTaskToSemaphore(task);
+
+        task.ContinueWith(executedTask =>
         {
             try
             {
-                if (CancellationToken.IsCancellationRequested)
-                {
+                if (executedTask.IsFaulted)
+                    ManageException(executedTask.Exception ?? new AggregateException());
+                else if (executedTask.IsCanceled)
                     RaiseCanceled();
-                    return;
+                else
+                {
+                    Interlocked.Increment(ref _successfullyCompletedJobsCount);
+                    NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
                 }
-
-                await job().ConfigureAwait(false);
-
-                Interlocked.Increment(ref _successfullyCompletedJobsCount);
-                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
             }
             finally
             {
                 ReleaseSemaphore();
             }
-        }));
+        },
+        CancellationToken.None,
+        TaskContinuationOptions.ExecuteSynchronously,
+        TaskScheduler.Default);
     }
 
     protected override void ManageException(Exception ex)

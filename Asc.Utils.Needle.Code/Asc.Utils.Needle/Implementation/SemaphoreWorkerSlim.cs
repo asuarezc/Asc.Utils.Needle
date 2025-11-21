@@ -12,9 +12,8 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     private static readonly Lock _locker = new();
     private readonly SemaphoreSlim _semaphore;
-    // Cambiado a List porque no se permiten Add mientras se esté ejecutando RunAsync.
     private readonly List<Func<Task>> _jobs = [];
-    private readonly ConcurrentBag<Exception> _exceptions = [];
+    private ConcurrentBag<Exception> _exceptions = [];
     private readonly List<Task> _tasks = [];
 
     protected CancellationTokenSource _cancellationTokenSource = new();
@@ -185,7 +184,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     protected void ClearWorkCollections()
     {
         _jobs.Clear();
-        _exceptions.Clear();
+        _exceptions = [];
         _tasks.Clear();
     }
 
