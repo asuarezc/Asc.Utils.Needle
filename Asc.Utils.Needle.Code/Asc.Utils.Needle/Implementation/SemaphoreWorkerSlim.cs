@@ -12,7 +12,8 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     private static readonly Lock _locker = new();
     private readonly SemaphoreSlim _semaphore;
-    private readonly ConcurrentBag<Func<Task>> _jobs = [];
+    // Cambiado a List porque no se permiten Add mientras se esté ejecutando RunAsync.
+    private readonly List<Func<Task>> _jobs = [];
     private readonly ConcurrentBag<Exception> _exceptions = [];
     private readonly List<Task> _tasks = [];
 
@@ -57,7 +58,11 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         ThrowIfRunning();
         ArgumentNullException.ThrowIfNull(job);
 
-        _jobs.Add(async () => await Task.Run(job).ConfigureAwait(false));
+        _jobs.Add(() =>
+        {
+            job();
+            return Task.CompletedTask;
+        });
     }
 
     public virtual void AddJob(Func<Task> job)
@@ -113,7 +118,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected virtual void AddJobToSemaphore(Func<Task> job)
     {
-        AddTaskToSemaphore(Task.Run(async () => await RunJobAsync(job).ConfigureAwait(false)));
+        AddTaskToSemaphore(RunJobAsync(job));
     }
 
     protected virtual void ManageException(Exception ex)
@@ -162,7 +167,12 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     {
         foreach (Func<Task> job in _jobs)
         {
-            await _semaphore.WaitAsync(CancellationToken).ConfigureAwait(false);
+            try
+            {
+                await _semaphore.WaitAsync(CancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { break; }
+
             AddJobToSemaphore(job);
         }
 
@@ -192,7 +202,7 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected void ThrowIfThereIsNoJobsToRun()
     {
-        if (_jobs.IsEmpty)
+        if (_jobs.Count == 0)
             throw new InvalidOperationException("Nothing to run. Add jobs before running a worker");
     }
 
@@ -204,7 +214,6 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         {
             if (CancellationToken.IsCancellationRequested)
             {
-                await _cancellationTokenSource.CancelAsync().ConfigureAwait(false);
                 RaiseCanceled();
                 return;
             }
