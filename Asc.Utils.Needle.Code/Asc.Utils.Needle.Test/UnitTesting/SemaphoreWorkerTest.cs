@@ -1,9 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.ComponentModel;
+using Xunit.Abstractions;
 
 namespace Asc.Utils.Needle.Test.UnitTesting;
 
-public class SemaphoreWorkerTest
+public class SemaphoreWorkerTest(ITestOutputHelper _testOutputHelper)
 {
     #region SemaphoreWorkerSlimTests
 
@@ -11,7 +12,7 @@ public class SemaphoreWorkerTest
     public void AddSynchronousJob_IntendedUse()
     {
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
-        worker.AddJob(() => Console.WriteLine("Ignore this!"));
+        worker.AddJob(() => _testOutputHelper.WriteLine("Ignore this!"));
     }
 
     [Fact]
@@ -48,7 +49,7 @@ public class SemaphoreWorkerTest
         while (!running)
             await Task.Delay(TimeSpan.FromSeconds(0.1));
 
-        Assert.Throws<InvalidOperationException>(() => worker.AddJob(() => Console.WriteLine("Ignore this!")));
+        Assert.Throws<InvalidOperationException>(() => worker.AddJob(() => _testOutputHelper.WriteLine("Ignore this!")));
     }
 
     [Fact]
@@ -100,7 +101,7 @@ public class SemaphoreWorkerTest
     {
         using INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker();
 
-        worker.AddJob(() => Console.WriteLine("Ignore this!"));
+        worker.AddJob(() => _testOutputHelper.WriteLine("Ignore this!"));
         await worker.RunAsync();
     }
 
