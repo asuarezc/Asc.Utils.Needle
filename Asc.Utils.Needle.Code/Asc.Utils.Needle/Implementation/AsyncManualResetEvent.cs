@@ -1,16 +1,6 @@
 ﻿namespace Asc.Utils.Needle.Implementation;
 
-/// <summary>
-/// Provides an asynchronous manual-reset event that allows tasks to wait for a signal to be set or reset. This class
-/// enables coordination between asynchronous operations by allowing one or more tasks to wait until the event is
-/// signaled.
-/// </summary>
-/// <remarks>
-/// Unlike AutoResetEvent, a manual-reset event remains signaled until it is explicitly reset, allowing
-/// multiple waiting tasks to proceed. This class is designed for use in asynchronous programming scenarios where
-/// traditional synchronization primitives are not suitable. All members are thread-safe.
-/// </remarks>
-internal sealed class AsyncManualResetEvent
+internal sealed class AsyncManualResetEvent : IAsyncManualResetEvent
 {
     private volatile TaskCompletionSource<bool> _taskCompletionSource;
 

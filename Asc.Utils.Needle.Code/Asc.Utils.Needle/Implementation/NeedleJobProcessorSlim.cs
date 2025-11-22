@@ -8,16 +8,17 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
     private readonly Task[] _workers;
 
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly AsyncManualResetEvent _pauseEvent = new(initialState: false);
+    private readonly IAsyncManualResetEvent _pauseEvent;
     private int _isStartedInt;
     private bool _isPaused = false;
     private bool _disposedValue;
     private int _stoppedInt;
 
-    public NeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour)
+    public NeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
     {
         ThreadPoolSize = threadPoolSize;
         OnJobFailedBehaviour = onJobFailedBehaviour;
+        _pauseEvent = pauseEvent;
 
         _channel = Channel.CreateUnbounded<Func<Task>>(new()
         {
