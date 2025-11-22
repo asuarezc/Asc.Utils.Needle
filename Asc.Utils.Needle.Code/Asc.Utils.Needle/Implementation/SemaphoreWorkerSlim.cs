@@ -149,7 +149,12 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
                 return;
 
             _canceledEventAlreadyRaised = true;
-            Canceled?.Invoke(this, EventArgs.Empty);
+
+            try
+            {
+                Canceled?.Invoke(this, EventArgs.Empty);
+            }
+            catch { } //Swallow exceptions from event handlers
         }
     }
 

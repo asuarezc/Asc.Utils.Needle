@@ -10,7 +10,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
     private int _successfullyCompletedJobsCount = 0;
     private int _faultedJobsCount = 0;
 
-    private static readonly Lock _locker = new();
+    private readonly Lock _locker = new();
 
     public SemaphoreWorker() {}
 
@@ -51,7 +51,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
             IsRunning = true;
         }
 
-        NotifyPropertyChanged(nameof(IsRunning));
+        SafeNotifyPropertyChanged(nameof(IsRunning));
 
         try
         {
@@ -65,7 +65,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
                 _cancellationTokenSource = new CancellationTokenSource();
             }
 
-            NotifyPropertyChanged(nameof(IsRunning));
+            SafeNotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
         }
     }
@@ -75,7 +75,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         base.AddJob(job);
 
         Interlocked.Increment(ref _totalJobsCount);
-        NotifyPropertyChanged(nameof(TotalJobsCount));
+        SafeNotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     public override void AddJob(Func<Task> job)
@@ -83,7 +83,7 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         base.AddJob(job);
 
         Interlocked.Increment(ref _totalJobsCount);
-        NotifyPropertyChanged(nameof(TotalJobsCount));
+        SafeNotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     protected override void AddJobToSemaphore(Func<Task> job)
@@ -107,6 +107,35 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
             return;
         }
 
+        if (task is null)
+        {
+            ManageException(new InvalidOperationException("The job returned a null task"));
+            ReleaseSemaphore();
+            return;
+        }
+
+        if (task.IsCompleted)
+        {
+            try
+            {
+                if (task.IsFaulted)
+                    ManageException(task.Exception ?? new AggregateException());
+                else if (task.IsCanceled)
+                    RaiseCanceled();
+                else
+                {
+                    Interlocked.Increment(ref _successfullyCompletedJobsCount);
+                    SafeNotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
+                }
+            }
+            finally
+            {
+                ReleaseSemaphore();
+            }
+
+            return;
+        }
+
         AddTaskToSemaphore(task);
 
         task.ContinueWith(executedTask =>
@@ -120,8 +149,12 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
                 else
                 {
                     Interlocked.Increment(ref _successfullyCompletedJobsCount);
-                    NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
+                    SafeNotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
                 }
+            }
+            catch (Exception ex)
+            {
+                ManageException(ex);
             }
             finally
             {
@@ -138,8 +171,13 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         base.ManageException(ex);
 
         Interlocked.Increment(ref _faultedJobsCount);
-        NotifyPropertyChanged(nameof(FaultedJobsCount));
-        JobFaulted?.Invoke(this, ex);
+        SafeNotifyPropertyChanged(nameof(FaultedJobsCount));
+
+        try
+        {
+            JobFaulted?.Invoke(this, ex);
+        }
+        catch { } //Swallow to avoid crashing the worker; exceptions are already recorded by ManageException
     }
 
     protected override void ThrowIfRunning()
@@ -156,9 +194,23 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
 
     #endregion
 
-    private void NotifyPropertyChanged(string propertyName)
+    private void SafeNotifyPropertyChanged(string propertyName)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        PropertyChangedEventHandler? handlers = PropertyChanged;
+
+        if (handlers is null)
+            return;
+
+        PropertyChangedEventArgs args = new(propertyName);
+
+        foreach (PropertyChangedEventHandler? single in handlers.GetInvocationList().Cast<PropertyChangedEventHandler>())
+        {
+            try
+            {
+                single(this, args);
+            }
+            catch { } //Swallow subscriber exceptions to avoid crashing the worker thread.
+        }
     }
 
     private string GetDebuggerDisplay() => ToString();
