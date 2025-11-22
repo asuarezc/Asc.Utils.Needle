@@ -76,4 +76,38 @@ public sealed class Pincushion : IPincushion
     {
         return new ParallelWorker(onJobFailedBehaviour);
     }
+
+    public INeedleJobProcessorSlim GetJobProcessorSlim()
+    {
+        return new NeedleJobProcessorSlim(
+            threadPoolSize: Environment.ProcessorCount,
+            onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs,
+            pauseEvent: new AsyncManualResetEvent(initialState: false)
+        );
+    }
+
+    public INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize)
+    {
+        if (threadPoolSize < 0)
+            throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
+
+        return new NeedleJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs, new AsyncManualResetEvent(initialState: false));
+    }
+
+    public INeedleJobProcessorSlim GetJobProcessorSlim(OnJobFailedBehaviour onJobFailedBehaviour)
+    {
+        return new NeedleJobProcessorSlim(
+            threadPoolSize: Environment.ProcessorCount,
+            onJobFailedBehaviour: onJobFailedBehaviour,
+            pauseEvent: new AsyncManualResetEvent(initialState: false)
+        );
+    }
+
+    public INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour)
+    {
+        if (threadPoolSize < 0)
+            throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
+
+        return new NeedleJobProcessorSlim(threadPoolSize, onJobFailedBehaviour, new AsyncManualResetEvent(initialState: false));
+    }
 }

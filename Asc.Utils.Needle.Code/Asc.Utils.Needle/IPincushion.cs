@@ -115,4 +115,43 @@ public interface IPincushion
     INeedleWorker GetParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour);
 
     #endregion
+
+    #region Job Processors
+
+    /// <summary>
+    /// Gets a lightweight job processor for handling job execution with minimal overhead.
+    /// </summary>
+    /// <returns>An instance of <see cref="INeedleJobProcessorSlim"/> that can be used to process jobs efficiently.</returns>
+    INeedleJobProcessorSlim GetJobProcessorSlim();
+
+    /// <summary>
+    /// Creates and returns a lightweight job processor that uses a thread pool with the specified number of threads.
+    /// </summary>
+    /// <param name="threadPoolSize">The number of threads to allocate for the job processor's thread pool. Must be greater than zero.</param>
+    /// <returns>An instance of a lightweight job processor configured to use the specified thread pool size.</returns>
+    INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize);
+
+    /// <summary>
+    /// Creates and returns a lightweight job processor configured with the specified behavior for handling job
+    /// failures.
+    /// </summary>
+    /// <param name="onJobFailedBehaviour">Specifies the action to take when a job fails during processing. Determines how the processor responds to job
+    /// failures.</param>
+    /// <returns>An instance of a lightweight job processor that applies the specified failure handling behavior.</returns>
+    INeedleJobProcessorSlim GetJobProcessorSlim(OnJobFailedBehaviour onJobFailedBehaviour);
+
+    /// <summary>
+    /// Creates and returns a lightweight job processor configured with the specified thread pool size and job failure
+    /// behavior.
+    /// </summary>
+    /// <param name="threadPoolSize">The number of threads to allocate for processing jobs. Must be greater than zero.</param>
+    /// <param name="onJobFailedBehaviour">Specifies the behavior to apply when a job fails during processing.</param>
+    /// <returns>
+    /// An instance of <see cref="INeedleJobProcessorSlim"/> configured with the provided thread pool size and job
+    /// failure behavior.
+    /// </returns>
+    /// <exception>Raises <see cref="ArgumentOutOfRangeException"/> if <paramref name="threadPoolSize"/> is not greater than zero.</exception>
+    INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour);
+
+    #endregion
 }
