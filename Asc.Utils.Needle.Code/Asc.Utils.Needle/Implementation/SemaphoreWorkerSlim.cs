@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace Asc.Utils.Needle.Implementation;
 
@@ -10,11 +9,12 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
     private bool _canceledEventAlreadyRaised;
     private bool _isRunning;
 
-    private static readonly Lock _locker = new();
+    private readonly Lock _locker = new();
+    private readonly Lock _lockerForExceptions = new();
     private readonly SemaphoreSlim _semaphore;
     private readonly List<Func<Task>> _jobs = [];
-    private ConcurrentBag<Exception> _exceptions = [];
     private readonly List<Task> _tasks = [];
+    private List<Exception> _exceptions = [];
 
     protected CancellationTokenSource _cancellationTokenSource = new();
 
@@ -125,7 +125,8 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         if (!CancellationToken.IsCancellationRequested && OnJobFailedBehaviour == OnJobFailedBehaviour.CancelPendingJobs)
             Cancel();
 
-        _exceptions.Add(ex);
+        using (_lockerForExceptions.EnterScope())
+            _exceptions.Add(ex);
     }
 
     protected virtual void ThrowIfRunning()
@@ -164,6 +165,10 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
 
     protected async Task RunInternalAsync()
     {
+        //Reserve capacity to avoid multiple reallocations
+        if (_tasks.Capacity < _jobs.Count)
+            _tasks.Capacity = _jobs.Count;
+
         foreach (Func<Task> job in _jobs)
         {
             try
@@ -175,16 +180,31 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
             AddJobToSemaphore(job);
         }
 
-        await Task.WhenAll(_tasks).ConfigureAwait(false);
+        //Create snapshot of tasks to wait outside lock
+        Task[] toWait;
 
-        if (!_exceptions.IsEmpty)
-            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
+        using (_locker.EnterScope())
+            toWait = [.. _tasks];
+
+        await Task.WhenAll(toWait).ConfigureAwait(false);
+
+        //Create snapshot of exceptions to throw outside lock
+        List<Exception> exceptionsSnapshot;
+
+        using (_lockerForExceptions.EnterScope())
+            exceptionsSnapshot = _exceptions.Count == 0 ? null! : [.. _exceptions];
+
+        if (exceptionsSnapshot != null && exceptionsSnapshot.Count > 0)
+            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", exceptionsSnapshot);
     }
 
     protected void ClearWorkCollections()
     {
         _jobs.Clear();
-        _exceptions = [];
+
+        using (_lockerForExceptions.EnterScope())
+            _exceptions = [];
+
         _tasks.Clear();
     }
 
@@ -217,7 +237,22 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
                 return;
             }
 
-            await job().ConfigureAwait(false);
+            Task? task;
+
+            try
+            {
+                task = job();
+            }
+            catch (Exception ex)
+            {
+                ManageException(ex);
+                return;
+            }
+
+            if (task is null)
+                throw new InvalidOperationException("The job returned a null task");
+
+            await task.ConfigureAwait(false);
         }
         catch (Exception ex)
         {

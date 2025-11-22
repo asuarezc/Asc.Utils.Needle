@@ -10,7 +10,7 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
     private bool _canceledEventAlreadyRaised;
     private bool _isRunning;
 
-    private static readonly Lock _locker = new();
+    private readonly Lock _locker = new();
     private readonly List<Func<Task>> _jobs = [];
     private ConcurrentBag<Exception> _exceptions = [];
 
