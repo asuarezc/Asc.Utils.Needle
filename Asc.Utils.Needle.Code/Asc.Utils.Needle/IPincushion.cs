@@ -82,7 +82,7 @@ public interface IPincushion
 
     #endregion
 
-    #region ParallelWorkers
+    #region Parallel workers
 
     /// <summary>
     /// Gets a parallel worker slim implementation.
@@ -122,14 +122,14 @@ public interface IPincushion
     /// Gets a lightweight job processor for handling job execution with minimal overhead.
     /// </summary>
     /// <returns>An instance of <see cref="INeedleJobProcessorSlim"/> that can be used to process jobs efficiently.</returns>
-    INeedleJobProcessorSlim GetJobProcessorSlim();
+    INeedleJobProcessorSlim GetNeedleJobProcessorSlim();
 
     /// <summary>
     /// Creates and returns a lightweight job processor that uses a thread pool with the specified number of threads.
     /// </summary>
     /// <param name="threadPoolSize">The number of threads to allocate for the job processor's thread pool. Must be greater than zero.</param>
     /// <returns>An instance of a lightweight job processor configured to use the specified thread pool size.</returns>
-    INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize);
+    INeedleJobProcessorSlim GetNeedleJobProcessorSlim(int threadPoolSize);
 
     /// <summary>
     /// Creates and returns a lightweight job processor configured with the specified behavior for handling job
@@ -138,7 +138,7 @@ public interface IPincushion
     /// <param name="onJobFailedBehaviour">Specifies the action to take when a job fails during processing. Determines how the processor responds to job
     /// failures.</param>
     /// <returns>An instance of a lightweight job processor that applies the specified failure handling behavior.</returns>
-    INeedleJobProcessorSlim GetJobProcessorSlim(OnJobFailedBehaviour onJobFailedBehaviour);
+    INeedleJobProcessorSlim GetNeedleJobProcessorSlim(OnJobFailedBehaviour onJobFailedBehaviour);
 
     /// <summary>
     /// Creates and returns a lightweight job processor configured with the specified thread pool size and job failure
@@ -150,8 +150,45 @@ public interface IPincushion
     /// An instance of <see cref="INeedleJobProcessorSlim"/> configured with the provided thread pool size and job
     /// failure behavior.
     /// </returns>
-    /// <exception>Raises <see cref="ArgumentOutOfRangeException"/> if <paramref name="threadPoolSize"/> is not greater than zero.</exception>
-    INeedleJobProcessorSlim GetJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour);
+    /// <exception>Throws <see cref="ArgumentOutOfRangeException"/> if <paramref name="threadPoolSize"/> is not greater than zero.</exception>
+    INeedleJobProcessorSlim GetNeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour);
+
+    /// <summary>
+    /// Gets an instance of a job processor used to execute and manage jobs.
+    /// </summary>
+    /// <returns>An object that implements the INeedleJobProcessor interface for processing jobs.</returns>
+    INeedleJobProcessor GetNeedleJobProcessor();
+
+    /// <summary>
+    /// Creates and returns a job processor configured to use a specified number of threads for concurrent job
+    /// execution.
+    /// </summary>
+    /// <param name="threadPoolSize">The number of threads to allocate for the job processor's thread pool. Must be greater than zero.</param>
+    /// <returns>An instance of <see cref="INeedleJobProcessor"/> that processes jobs using the specified thread pool size.</returns>
+    /// <exception>Throws <see cref="ArgumentOutOfRangeException"/> if <paramref name="threadPoolSize"/> is not greater than zero.</exception>
+    INeedleJobProcessor GetNeedleJobProcessor(int threadPoolSize);
+
+    /// <summary>
+    /// Retrieves an instance of a job processor configured with the specified behavior for handling job failures.
+    /// </summary>
+    /// <param name="onJobFailedBehaviour">
+    /// Specifies the behavior to apply when a job fails. Determines how the processor responds to job failure scenarios.
+    /// </param>
+    /// <returns>
+    /// An instance of <see cref="INeedleJobProcessor"/> that processes jobs according to the provided failure handling behavior.
+    /// </returns>
+    INeedleJobProcessor GetNeedleJobProcessor(OnJobFailedBehaviour onJobFailedBehaviour);
+
+    /// <summary>
+    /// Creates and returns a job processor configured with the specified thread pool size and job failure behavior.
+    /// </summary>
+    /// <param name="threadPoolSize">The number of threads to allocate for processing jobs. Must be greater than zero.</param>
+    /// <param name="onJobFailedBehaviour">Specifies how the job processor should handle failed jobs.</param>
+    /// <returns>
+    /// An instance of <see cref="INeedleJobProcessor"/> configured with the provided thread pool size and job failure behavior.
+    /// </returns>
+    /// <exception>Throws <see cref="ArgumentOutOfRangeException"/> if <paramref name="threadPoolSize"/> is not greater than zero.</exception>
+    INeedleJobProcessor GetNeedleJobProcessor(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour);
 
     #endregion
 }

@@ -51,6 +51,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
     public void ProcessJob(Action job)
     {
         ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(job);
 
         _channel.Writer.TryWrite(() =>
         {
@@ -62,6 +63,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
     public void ProcessJob(Func<Task> job)
     {
         ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(job);
 
         _channel.Writer.TryWrite(job);
     }
@@ -112,7 +114,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
             throw new InvalidOperationException("Job processor is not paused.");
     }
 
-    private void ThrowIfDisposed()
+    protected void ThrowIfDisposed()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposedValue), nameof(NeedleJobProcessorSlim));
     }

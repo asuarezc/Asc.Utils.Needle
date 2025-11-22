@@ -1,16 +1,19 @@
-﻿using System.Collections.Concurrent;
+﻿using Asc.Utils.Needle.Implementation;
+using System.Collections.Concurrent;
 
 namespace Asc.Utils.Needle.Test.IntegrationTesting;
 
-public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
+public class NeedleJobProcessorWithAsyncManualResetEventTest
 {
+    #region NeedleJobProcessorSlim tests
+
     private static Task WaitWithTimeout(Task task, int ms = 2000) =>
         task.WaitAsync(TimeSpan.FromMilliseconds(ms));
 
     [Fact]
     public void Start_WithRealAsyncManualResetEvent_SetsStatusToRunning()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         Assert.Equal(NeedleJobProcessorStatus.Stopped, processor.Status);
 
@@ -22,7 +25,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
     [Fact]
     public async Task ProcessJob_WithRealAsyncManualResetEvent_ActionIsExecuted()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         processor.Start();
 
@@ -37,7 +40,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
     [Fact]
     public async Task Pause_WithRealEvent_BlocksUntilResume()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         processor.Start(); // Start sets the event -> workers proceed
 
@@ -61,7 +64,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
     [Fact]
     public async Task Pause_PreventsExecution_UntilResume()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         processor.Start();
 
@@ -105,7 +108,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
     [Fact]
     public async Task CancelPendingJobs_WithRealEvent_ClearsPendingJobsWhenOneFails()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.CancelPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.CancelPendingJobs);
 
         processor.Start();
 
@@ -151,7 +154,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
     [Fact]
     public async Task DisposeAsync_WithRealEvent_WaitsForInFlightJobs()
     {
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         processor.Start();
 
@@ -172,7 +175,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
         const int threadPoolSize = 4;
         const int totalJobs = 1000;
 
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
         var bag = new ConcurrentBag<int>();
 
@@ -217,7 +220,7 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
         const int threadPoolSize = 1; // single worker to ensure predictable ordering
         const int totalJobs = 500;
 
-        using var processor = Pincushion.Instance.GetNeedleJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.CancelPendingJobs);
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(threadPoolSize, OnJobFailedBehaviour.CancelPendingJobs);
 
         processor.Start();
 
@@ -261,4 +264,91 @@ public class NeedleJobProcessorSlimWithAsyncManualResetEventTest
         // Since OnJobFailedBehaviour is CancelPendingJobs and single worker, none of the later jobs should have executed
         Assert.True(executed.IsEmpty);
     }
+
+    #endregion
+
+    #region Integration tests specific to NeedleJobProcessor (counters & INotifyPropertyChanged)
+
+    [Fact]
+    public async Task ProcessJob_Action_IncrementsCountersAndNotifies_Integration()
+    {
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+
+        var changed = new ConcurrentBag<string>();
+        processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
+
+        processor.Start();
+
+        var jobDone = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        processor.ProcessJob(() => jobDone.SetResult(1));
+
+        await WaitWithTimeout(jobDone.Task);
+
+        Assert.Equal(1, processor.TotalAddedJobsCount);
+        Assert.Equal(1, processor.TotalSuccessfullyProcessedJobsCount);
+        Assert.Contains(nameof(processor.TotalAddedJobsCount), changed);
+        Assert.Contains(nameof(processor.TotalSuccessfullyProcessedJobsCount), changed);
+    }
+
+    [Fact]
+    public async Task ProcessJob_Func_IncrementsCountersAndNotifies_Integration()
+    {
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+
+        var changed = new ConcurrentBag<string>();
+        processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
+
+        processor.Start();
+
+        var jobDone = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        processor.ProcessJob(async () =>
+        {
+            jobDone.SetResult(1);
+            await Task.CompletedTask;
+        });
+
+        await WaitWithTimeout(jobDone.Task);
+
+        Assert.Equal(1, processor.TotalAddedJobsCount);
+        Assert.Equal(1, processor.TotalSuccessfullyProcessedJobsCount);
+        Assert.Contains(nameof(processor.TotalAddedJobsCount), changed);
+        Assert.Contains(nameof(processor.TotalSuccessfullyProcessedJobsCount), changed);
+    }
+
+    [Fact]
+    public async Task FaultedJob_IncrementsFaultedCounterAndNotifies_Integration()
+    {
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+
+        var changed = new ConcurrentBag<string>();
+        processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
+
+        processor.Start();
+
+        var faulted = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+        processor.JobFaulted += (_, ex) => faulted.TrySetResult(ex);
+
+        processor.ProcessJob(() => throw new InvalidOperationException("boom"));
+
+        await WaitWithTimeout(faulted.Task);
+
+        Assert.Equal(1, processor.TotalFaultedProcessedJobsCount);
+        Assert.Contains(nameof(processor.TotalFaultedProcessedJobsCount), changed);
+    }
+
+    [Fact]
+    public void StartPauseResume_RaisesStatusPropertyChanged_Integration()
+    {
+        using var processor = Pincushion.Instance.GetNeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+        var changed = new List<string>();
+        processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
+
+        processor.Start();
+        processor.Pause();
+        processor.Resume();
+
+        Assert.Contains(nameof(processor.Status), changed);
+    }
+
+    #endregion
 }
