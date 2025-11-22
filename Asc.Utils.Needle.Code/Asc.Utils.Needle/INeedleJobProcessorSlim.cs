@@ -1,33 +1,22 @@
 ﻿namespace Asc.Utils.Needle;
 
 /// <summary>
-/// Defines a minimal interface for processing jobs using a thread pool with support for synchronous and asynchronous
-/// job execution, status monitoring, and basic lifecycle control.
+/// Defines the contract for a lightweight job processor that manages the execution of jobs using a thread pool, with
+/// support for job failure handling and processor state management.
 /// </summary>
-/// <remarks>Implementations of this interface allow jobs to be queued for execution and provide properties to
-/// monitor processing status and job counts. The interface exposes events for job fault handling and methods to start,
-/// pause, or stop job processing.</remarks>
-public interface INeedleJobProcessorSlim
+/// <remarks>
+/// The implementation of this interface allow scheduling and processing of jobs, either as synchronous
+/// actions or asynchronous tasks, with configurable thread pool size and job failure behavior. The processor exposes
+/// events for job fault notifications and provides methods to control its execution state, including starting, pausing,
+/// and resuming job processing. Resources used by the processor should be released by calling the appropriate dispose
+/// methods when the processor is no longer needed.
+/// </remarks>
+public interface INeedleJobProcessorSlim : IDisposable, IAsyncDisposable
 {
     /// <summary>
-    /// Gets the maximum number of threads used by this job processor.
+    /// Gets the maximum number of threads available in the thread pool for concurrent task execution.
     /// </summary>
     int ThreadPoolSize { get; }
-
-    /// <summary>
-    /// Gets the number of jobs that are currently running.
-    /// </summary>
-    int CurrentRunningJobsCount { get; }
-
-    /// <summary>
-    /// Gets the total number of jobs that have completed successfully or unsuccessfully.
-    /// </summary>
-    int TotalCompletedJobsCount { get; }
-
-    /// <summary>
-    /// Gets the current status of the job processor.
-    /// </summary>
-    NeedleJobProcessorStatus Status { get; }
 
     /// <summary>
     /// Gets the behavior to apply when a job fails during execution.
@@ -35,49 +24,64 @@ public interface INeedleJobProcessorSlim
     OnJobFailedBehaviour OnJobFailedBehaviour { get; }
 
     /// <summary>
-    /// Gets the token that can be used to observe cancellation by added jobs.
-    /// <see cref="CancellationToken.IsCancellationRequested"/> will be true when any job fails and when <see cref="OnJobFailedBehaviour"/> is set to <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
-    /// Also, it will be true when <see cref="Pause"/> or <see cref="Stop"/> methods are invoked.
+    /// Gets the <see cref="CancellationToken"/> that is used to observe cancellation requests for the current
+    /// operation.
     /// </summary>
+    /// <remarks>
+    /// Use this token to monitor for cancellation and respond appropriately in long-running or
+    /// asynchronous operations. The token may be used to cooperatively cancel the operation if requested by the
+    /// caller.
+    /// </remarks>
     CancellationToken CancellationToken { get; }
+
+    /// <summary>
+    /// Gets the current status of the job processor, indicating whether it is running, paused, or stopped.
+    /// </summary>
+    NeedleJobProcessorStatus Status { get; }
 
     /// <summary>
     /// Occurs when a job encounters an unhandled exception during execution.
     /// </summary>
     /// <remarks>
-    /// Subscribers can use this event to handle errors that occur within a job and perform custom
-    /// error handling or logging. The event provides the exception that caused the job to fault.
+    /// Subscribers can use this event to handle errors that occur within a job. The event provides
+    /// the exception that caused the fault, allowing for custom error handling or logging. This event is raised only
+    /// for unhandled exceptions; handled exceptions within the job do not trigger this event.
     /// </remarks>
     event EventHandler<Exception> JobFaulted;
 
     /// <summary>
-    /// Adds a job to the processing queue to be executed when a thread is available.
+    /// Adds a job to the processing queue for execution.
     /// </summary>
-    /// <param name="job">Job to process</param>
-    /// <exception cref="ArgumentNullException">If <paramref name="job"/> is null.</exception>"
+    /// <param name="job">The action to execute. Cannot be null.</param>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="job"/> is null.</exception>
     void ProcessJob(Action job);
 
     /// <summary>
-    /// Adds an asyncronous job to the processing queue to be executed when a thread is available.
+    /// Adds an asynchronous job to the processing queue for execution.
     /// </summary>
-    /// <param name="job">Asyncronous job to process</param>
-    /// <exception cref="ArgumentNullException">If <paramref name="job"/> is null.</exception>"
+    /// <param name="job">The asyncronous action to execute. Cannot be null</param>
+    /// <exception cref="ArgumentNullException">Thrown if the <paramref name="job"/> is null.</exception>
     void ProcessJob(Func<Task> job);
 
     /// <summary>
-    /// Starts processing jobs in the queue.
+    /// Starts the job processor, allowing it to begin processing queued jobs.
     /// </summary>
+    /// <remarks>
+    /// Jobs can be added to the processor before it is started, but they will not be executed until
+    /// it is started. Calling this method on an already started processor will throw an <see cref="InvalidOperationException"/>.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Thrown if the processor has already been started.</exception>
     void Start();
 
     /// <summary>
-    /// Pauses the job processor but does not remove jobs from the queue.
-    /// When resumed, processing continues with the remaining jobs.
+    /// Pauses the job processor, temporarily halting the processing of queued jobs.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the processor is not currently running or if the processor is already paused.</exception>
     void Pause();
 
     /// <summary>
-    /// Stops processing jobs. Any jobs that are currently running will be allowed to complete,
-    /// but no new jobs will be started, and pending jobs in the queue will be discarded.
+    /// Resumes the job processor, allowing it to continue processing queued jobs after being paused.
     /// </summary>
-    void Stop();
+    /// <exception cref="InvalidOperationException">Thrown if the processor is not currently paused.</exception>
+    void Resume();
 }

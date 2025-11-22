@@ -1,49 +1,253 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Threading.Channels;
 
 namespace Asc.Utils.Needle.Implementation;
 
 internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
 {
-    public int ThreadPoolSize => throw new NotImplementedException();
+    private readonly Channel<Func<Task>> _channel;
+    private readonly Task[] _workers;
 
-    public int CurrentRunningJobsCount => throw new NotImplementedException();
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private readonly AsyncManualResetEvent _pauseEvent = new(initialState: false);
+    private int _isStartedInt;
+    private bool _isPaused = false;
+    private bool _disposedValue;
+    private int _stoppedInt;
 
-    public int TotalCompletedJobsCount => throw new NotImplementedException();
+    public NeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour)
+    {
+        ThreadPoolSize = threadPoolSize;
+        OnJobFailedBehaviour = onJobFailedBehaviour;
 
-    public NeedleJobProcessorStatus Status => throw new NotImplementedException();
+        _channel = Channel.CreateUnbounded<Func<Task>>(new()
+        {
+            SingleReader = false,
+            SingleWriter = false,
+            AllowSynchronousContinuations = true
+        });
 
-    public OnJobFailedBehaviour OnJobFailedBehaviour => throw new NotImplementedException();
+        //Reserve worker slots but do not start tasks until Start() is called
+        _workers = new Task[ThreadPoolSize];
+    }
 
-    public CancellationToken CancellationToken => throw new NotImplementedException();
+    #region INeedleJobProcessorSlim Implementation
+
+    public int ThreadPoolSize { get; }
+
+    public OnJobFailedBehaviour OnJobFailedBehaviour { get; }
+
+    public CancellationToken CancellationToken => _cancellationTokenSource.Token;
 
     public event EventHandler<Exception>? JobFaulted;
 
-    public void Pause()
-    {
-        throw new NotImplementedException();
-    }
+    public NeedleJobProcessorStatus Status =>
+        Volatile.Read(ref _isStartedInt) == 0
+            ? NeedleJobProcessorStatus.Stopped
+            : Volatile.Read(ref _isPaused)
+                ? NeedleJobProcessorStatus.Paused
+                : NeedleJobProcessorStatus.Running;
 
     public void ProcessJob(Action job)
     {
-        throw new NotImplementedException();
+        ThrowIfDisposed();
+
+        _channel.Writer.TryWrite(() =>
+        {
+            job();
+            return Task.CompletedTask;
+        });
     }
 
     public void ProcessJob(Func<Task> job)
     {
-        throw new NotImplementedException();
+        ThrowIfDisposed();
+
+        _channel.Writer.TryWrite(job);
     }
 
     public void Start()
     {
-        throw new NotImplementedException();
+        ThrowIfDisposed();
+
+        if (Interlocked.CompareExchange(ref _isStartedInt, 1, 0) != 0)
+            throw new InvalidOperationException("Job processor has already been started.");
+
+        StartInternal();
     }
 
-    public void Stop()
+    public void Pause()
     {
-        throw new NotImplementedException();
+        ThrowIfDisposed();
+        ThrowIfNotStarted();
+        ThrowIfPaused();
+        PauseInternal();
     }
+
+    public void Resume()
+    {
+        ThrowIfDisposed();
+        ThrowIfNotStarted();
+        ThrowIfNotPaused();
+        ResumeInternal();
+    }
+
+    #endregion
+
+    private void ThrowIfNotStarted()
+    {
+        if (Volatile.Read(ref _isStartedInt) == 0)
+            throw new InvalidOperationException("Job processor has not been started yet.");
+    }
+
+    private void ThrowIfPaused()
+    {
+        if (Volatile.Read(ref _isPaused))
+            throw new InvalidOperationException("Job processor is currently paused.");
+    }
+
+    private void ThrowIfNotPaused()
+    {
+        if (!Volatile.Read(ref _isPaused))
+            throw new InvalidOperationException("Job processor is not paused.");
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposedValue), nameof(NeedleJobProcessorSlim));
+    }
+
+    private void ClearChannel()
+    {
+        while (_channel.Reader.TryRead(out _)) { }
+    }
+
+    private void StartInternal()
+    {
+        Volatile.Write(ref _isStartedInt, 1);
+        _pauseEvent.Set(); //Set event to start workers
+
+        StartTasks();
+    }
+
+    private void StartTasks()
+    {
+        for (int i = 0; i < ThreadPoolSize; i++)
+        {
+            //Only start if not already started
+            if (_workers[i] == null)
+                _workers[i] = Task.Run(() => WorkerLoop(_cancellationTokenSource.Token));
+        }
+    }
+
+    private void PauseInternal()
+    {
+        Volatile.Write(ref _isPaused, true);
+        _pauseEvent.Reset(); //Reset event to pause workers
+    }
+
+    private void ResumeInternal()
+    {
+        Volatile.Write(ref _isPaused, false);
+        _pauseEvent.Set(); //Set event to resume workers
+    }
+
+    private void StopInternal()
+    {
+        if (Interlocked.Exchange(ref _stoppedInt, 1) != 0)
+            return;
+
+        PauseInternal();
+        _channel.Writer.TryComplete();
+        ClearChannel();
+        _cancellationTokenSource.Cancel();
+    }
+
+    private async Task WorkerLoop(CancellationToken stopToken)
+    {
+        while (!stopToken.IsCancellationRequested)
+        {
+            await _pauseEvent.WaitAsync(stopToken).ConfigureAwait(false);
+
+            if (stopToken.IsCancellationRequested)
+                break;
+
+            try
+            {
+                //Wait until an item is available or cancelled.
+                var job = await _channel.Reader.ReadAsync(stopToken).ConfigureAwait(false);
+
+                try
+                {
+                    await job().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    try { JobFaulted?.Invoke(this, ex); }
+                    catch { } //Ignore exceptions thrown by event handlers
+
+                    if (OnJobFailedBehaviour == OnJobFailedBehaviour.CancelPendingJobs)
+                        ClearChannel();
+                }
+            }
+            catch (OperationCanceledException) //Cancellation requested: exit loop
+            {
+                break;
+            }
+            catch (ChannelClosedException)
+            {
+                break;
+            }
+        }
+    }
+
+    #region IDisposable and IAsyncIDisposable Implementation
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (Volatile.Read(ref _disposedValue))
+            return;
+
+        if (disposing)
+        {
+            StopInternal();
+
+            try
+            {
+                Task[] startedWorkers = [.. _workers.Where(it => it != null)];
+
+                if (startedWorkers.Length > 0)
+                    Task.WhenAll(startedWorkers).Wait();
+            }
+            catch { } //Ignore exceptions during disposal
+
+            _cancellationTokenSource.Dispose();
+        }
+
+        Interlocked.Exchange(ref _disposedValue, true);
+    }
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        StopInternal();
+
+        try
+        {
+            Task[] startedWorkers = [.. _workers.Where(it => it != null)];
+
+            if (startedWorkers.Length > 0)
+                await Task.WhenAll(startedWorkers).ConfigureAwait(false);
+        }
+        catch { }
+
+        _cancellationTokenSource.Dispose();
+        Interlocked.Exchange(ref _disposedValue, true);
+    }
+
+    #endregion
 }
