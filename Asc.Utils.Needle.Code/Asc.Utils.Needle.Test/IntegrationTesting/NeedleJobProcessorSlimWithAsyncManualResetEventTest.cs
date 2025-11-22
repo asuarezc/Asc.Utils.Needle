@@ -1,4 +1,4 @@
-﻿using Asc.Utils.Needle.Implementation;
+﻿using System.Collections.Concurrent;
 
 namespace Asc.Utils.Needle.Test.IntegrationTesting
 {
@@ -10,8 +10,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public void Start_WithRealAsyncManualResetEvent_SetsStatusToRunning()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            using var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
             Assert.Equal(NeedleJobProcessorStatus.Stopped, processor.Status);
 
@@ -23,8 +22,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public async Task ProcessJob_WithRealAsyncManualResetEvent_ActionIsExecuted()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            using var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
             processor.Start();
 
@@ -39,8 +37,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public async Task Pause_WithRealEvent_BlocksUntilResume()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            using var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
             processor.Start(); // Start sets the event -> workers proceed
 
@@ -64,8 +61,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public async Task Pause_PreventsExecution_UntilResume()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            using var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
             processor.Start();
 
@@ -109,8 +105,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public async Task CancelPendingJobs_WithRealEvent_ClearsPendingJobsWhenOneFails()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            using var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.CancelPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.CancelPendingJobs);
 
             processor.Start();
 
@@ -156,8 +151,7 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
         [Fact]
         public async Task DisposeAsync_WithRealEvent_WaitsForInFlightJobs()
         {
-            var pause = new AsyncManualResetEvent(initialState: false);
-            var processor = new NeedleJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pause);
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(1, OnJobFailedBehaviour.ContinueRunningPendingJobs);
 
             processor.Start();
 
@@ -169,6 +163,103 @@ namespace Asc.Utils.Needle.Test.IntegrationTesting
             var disposeTask = processor.DisposeAsync().AsTask();
 
             await WaitWithTimeout(disposeTask);
+        }
+
+        // Integration: high-throughput realistic workload
+        [Fact]
+        public async Task HighThroughput_ProcessAllJobs()
+        {
+            const int threadPoolSize = 4;
+            const int totalJobs = 1000;
+
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs);
+
+            var bag = new ConcurrentBag<int>();
+
+            processor.Start();
+
+            // produce jobs concurrently
+            var producers = new List<Task>();
+            int producersCount = Environment.ProcessorCount;
+            int jobsPerProducer = totalJobs / Math.Max(1, producersCount);
+
+            for (int p = 0; p < producersCount; p++)
+            {
+                int start = p * jobsPerProducer;
+                int end = (p == producersCount - 1) ? totalJobs : start + jobsPerProducer;
+
+                producers.Add(Task.Run(() =>
+                {
+                    for (int i = start; i < end; i++)
+                    {
+                        int capture = i;
+                        processor.ProcessJob(() => { bag.Add(capture); return Task.CompletedTask; });
+                    }
+                }));
+            }
+
+            await Task.WhenAll(producers);
+
+            // wait until all jobs processed or timeout
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (bag.Count < totalJobs && sw.ElapsedMilliseconds < 5000)
+                await Task.Delay(20);
+
+            // stop processor and wait
+            await processor.DisposeAsync();
+
+            Assert.Equal(totalJobs, bag.Count);
+        }
+
+        [Fact]
+        public async Task CancelDuringHighLoad_ClearsPendingJobs()
+        {
+            const int threadPoolSize = 1; // single worker to ensure predictable ordering
+            const int totalJobs = 500;
+
+            using var processor = Pincushion.Instance.GetJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.CancelPendingJobs);
+
+            processor.Start();
+
+            var executed = new ConcurrentBag<int>();
+            var faultTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
+            processor.JobFaulted += (_, ex) => faultTcs.TrySetResult(ex);
+
+            // Enqueue a blocker to occupy worker briefly so many jobs queue up
+            var blockerStarted = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var unblocker = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            processor.ProcessJob(async () =>
+            {
+                blockerStarted.TrySetResult(true);
+                await unblocker.Task;
+            });
+
+            await WaitWithTimeout(blockerStarted.Task);
+
+            // Enqueue a failing job followed by many jobs
+            processor.ProcessJob(() => throw new InvalidOperationException("boom"));
+
+            for (int i = 0; i < totalJobs; i++)
+            {
+                int capture = i;
+                processor.ProcessJob(async () => { executed.Add(capture); await Task.CompletedTask; });
+            }
+
+            // allow failing job to run
+            unblocker.TrySetResult(true);
+
+            // wait fault
+            await WaitWithTimeout(faultTcs.Task);
+
+            // give some time for clearing
+            await Task.Delay(200);
+
+            // stop processor
+            await processor.DisposeAsync();
+
+            // Since OnJobFailedBehaviour is CancelPendingJobs and single worker, none of the later jobs should have executed
+            Assert.True(executed.IsEmpty);
         }
     }
 }
