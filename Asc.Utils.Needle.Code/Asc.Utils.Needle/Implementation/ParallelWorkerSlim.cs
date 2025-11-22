@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 
 namespace Asc.Utils.Needle.Implementation;
 
@@ -11,8 +10,9 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
     private bool _isRunning;
 
     private readonly Lock _locker = new();
+    private readonly Lock _lockerForExceptions = new();
     private readonly List<Func<Task>> _jobs = [];
-    private ConcurrentBag<Exception> _exceptions = [];
+    private List<Exception> _exceptions = [];
 
     protected CancellationTokenSource _cancellationTokenSource = new();
 
@@ -123,14 +123,25 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
         await Task.WhenAll(tasks).ConfigureAwait(false);
 
-        if (!_exceptions.IsEmpty)
-            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", _exceptions);
+        //Snapshot exceptions to avoid locking during throw
+        List<Exception>? snapshot = null;
+
+        using (_lockerForExceptions.EnterScope())
+        {
+            if (_exceptions.Count > 0)
+                snapshot = [.. _exceptions];
+        }
+
+        if (snapshot != null && snapshot.Count > 0)
+            throw new AggregateException("Some jobs failed. See inner exceptions for more information.", snapshot);
     }
 
     protected void ClearWorkCollections()
     {
         _jobs.Clear();
-        _exceptions = [];
+
+        using (_lockerForExceptions.EnterScope())
+            _exceptions = [];
     }
 
     protected void ThrowIfDisposed()
@@ -167,7 +178,8 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
         if (!CancellationToken.IsCancellationRequested && OnJobFailedBehaviour == OnJobFailedBehaviour.CancelPendingJobs)
             Cancel();
 
-        _exceptions.Add(ex);
+        using (_lockerForExceptions.EnterScope())
+            _exceptions.Add(ex);
     }
 
     protected void RaiseCanceled()
@@ -195,6 +207,9 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
             ManageException(ex);
             return Task.CompletedTask;
         }
+
+        if (jobTask is null)
+            throw new InvalidOperationException("The job returned a null Task.");
 
         if (jobTask.IsCompleted)
         {

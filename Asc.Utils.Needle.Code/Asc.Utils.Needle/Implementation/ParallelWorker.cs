@@ -7,7 +7,7 @@ namespace Asc.Utils.Needle.Implementation;
 internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
     : ParallelWorkerSlim(onJobFailedBehaviour), INeedleWorker
 {
-    private static readonly Lock locker = new();
+    private readonly Lock _locker = new();
     private int _totalJobsCount = 0;
     private int _successfullyCompletedJobsCount = 0;
     private int _failedJobsCount = 0;
@@ -36,8 +36,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         ThrowIfDisposed();
         ThrowIfThereIsNoJobsToRun();
 
-        locker.Enter();
-
+        _locker.Enter();
         try
         {
             ThrowIfRunning();
@@ -45,10 +44,10 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         }
         finally
         {
-            locker.Exit();
+            _locker.Exit();
         }
 
-        NotifyPropertyChanged(nameof(IsRunning));
+        SafeNotifyPropertyChanged(nameof(IsRunning));
 
         try
         {
@@ -56,19 +55,23 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         }
         finally
         {
-            locker.Enter();
-
+            _locker.Enter();
+            CancellationTokenSource oldCts = null!;
             try
             {
                 IsRunning = false;
+                // swap CTS and dispose old one to avoid leak
+                oldCts = _cancellationTokenSource;
                 _cancellationTokenSource = new CancellationTokenSource();
             }
             finally
             {
-                locker.Exit();
+                _locker.Exit();
             }
 
-            NotifyPropertyChanged(nameof(IsRunning));
+            try { oldCts?.Dispose(); } catch { }
+
+            SafeNotifyPropertyChanged(nameof(IsRunning));
             ClearWorkCollections();
         }
     }
@@ -78,7 +81,7 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         base.AddJob(job);
 
         Interlocked.Increment(ref _totalJobsCount);
-        NotifyPropertyChanged(nameof(TotalJobsCount));
+        SafeNotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     public override void AddJob(Func<Task> job)
@@ -86,34 +89,56 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         base.AddJob(job);
 
         Interlocked.Increment(ref _totalJobsCount);
-        NotifyPropertyChanged(nameof(TotalJobsCount));
+        SafeNotifyPropertyChanged(nameof(TotalJobsCount));
     }
 
     protected override Task GetTaskFromFunc(Func<Task> job)
     {
-        return GetTaskFromFuncInternal();
+        Task? jobTask;
 
-        // Wrapper to avoid Task.Run allocation
-        async Task GetTaskFromFuncInternal()
+        try
         {
-            try
-            {
-                if (CancellationToken.IsCancellationRequested)
-                {
-                    RaiseCanceled();
-                    return;
-                }
-
-                await job().ConfigureAwait(false);
-
-                Interlocked.Increment(ref _successfullyCompletedJobsCount);
-                NotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
-            }
-            catch (Exception ex)
-            {
-                ManageException(ex);
-            }
+            jobTask = job();
         }
+        catch (Exception ex)
+        {
+            ManageException(ex);
+            return Task.CompletedTask;
+        }
+
+        if (jobTask is null)
+            throw new InvalidOperationException("The job returned a null Task.");
+
+        if (jobTask.IsCompleted)
+        {
+            if (jobTask.IsFaulted)
+                ManageException(jobTask.Exception ?? new AggregateException());
+            else if (jobTask.IsCanceled || CancellationToken.IsCancellationRequested)
+                RaiseCanceled();
+            else
+            {
+                Interlocked.Increment(ref _successfullyCompletedJobsCount);
+                SafeNotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
+            }
+
+            return Task.CompletedTask;
+        }
+
+        return jobTask.ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+                ManageException(t.Exception ?? new AggregateException());
+            else if (t.IsCanceled || CancellationToken.IsCancellationRequested)
+                RaiseCanceled();
+            else
+            {
+                Interlocked.Increment(ref _successfullyCompletedJobsCount);
+                SafeNotifyPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
+            }
+        },
+        CancellationToken.None,
+        TaskContinuationOptions.ExecuteSynchronously,
+        TaskScheduler.Default);
     }
 
     protected override void ManageException(Exception ex)
@@ -121,8 +146,17 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
         base.ManageException(ex);
 
         Interlocked.Increment(ref _failedJobsCount);
-        NotifyPropertyChanged(nameof(FaultedJobsCount));
-        JobFaulted?.Invoke(this, ex);
+        SafeNotifyPropertyChanged(nameof(FaultedJobsCount));
+
+        EventHandler<Exception>? handlers = JobFaulted;
+
+        if (handlers is null)
+            return;
+
+        foreach (EventHandler<Exception> single in handlers.GetInvocationList().Cast<EventHandler<Exception>>())
+        {
+            try { single(this, ex); } catch { } //Swallow per subscriber to avoid crashing worker
+        }
     }
 
     protected override void ThrowIfRunning()
@@ -139,9 +173,19 @@ internal class ParallelWorker(OnJobFailedBehaviour onJobFailedBehaviour)
 
     #endregion
 
-    private void NotifyPropertyChanged(string propertyName)
+    private void SafeNotifyPropertyChanged(string propertyName)
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        PropertyChangedEventHandler? handlers = PropertyChanged;
+
+        if (handlers is null)
+            return;
+
+        PropertyChangedEventArgs args = new(propertyName);
+
+        foreach (PropertyChangedEventHandler single in handlers.GetInvocationList().Cast<PropertyChangedEventHandler>())
+        {
+            try { single(this, args); } catch { } //Swallow per subscriber to avoid crashing worker
+        }
     }
 
     private string GetDebuggerDisplay() => ToString();
