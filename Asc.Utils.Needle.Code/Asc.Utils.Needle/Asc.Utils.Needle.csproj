@@ -1,10 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-	<PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
     <PackageId>Asc.Utils.Needle</PackageId>
     <Title>Asc.Utils.Needle</Title>
     <Version>2.1.0</Version>
@@ -13,19 +17,22 @@
     <Product>Asc.Utils.Needle</Product>
     <Description>Easy multithreading worker utlity to simplify background operations</Description>
     <Copyright>MIT</Copyright>
-    <PackageTags>Multithreading;Utility;Background Worker</PackageTags>
+    <PackageTags>Multithreading;Utility;Workers</PackageTags>
     <PackageIcon>needle.png</PackageIcon>
     <RepositoryUrl>https://github.com/asuarezc/Asc.Utils.Needle</RepositoryUrl>
+    <RepositoryType>Git</RepositoryType>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageReleaseNotes>net9.0 version</PackageReleaseNotes>
   </PropertyGroup>
+
   <ItemGroup>
     <None Include="..\..\README.md">
       <Pack>True</Pack>
       <PackagePath>\</PackagePath>
     </None>
   </ItemGroup>
-	
+
   <ItemGroup>
     <None Update="needle.png">
       <Pack>True</Pack>
@@ -33,9 +40,9 @@
     </None>
   </ItemGroup>
 
-	<ItemGroup>
-		<AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
-			<_Parameter1>Asc.Utils.Needle.Test</_Parameter1>
-		</AssemblyAttribute>
-	</ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>Asc.Utils.Needle.Test</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>
