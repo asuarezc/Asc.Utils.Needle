@@ -39,20 +39,51 @@ Slim vs non-slim
 - Slim versions prioritize throughput and low allocations and offer a minimal API surface.
 - Non-slim versions add observability (properties, events, `INotifyPropertyChanged`) and are useful for UIs or monitoring scenarios.
 
-### Quick capability summary
+### Quick capability summary (compact, GitHub-friendly)
 
-Below is a compact, at-a-glance summary of what each worker type provides. `[x]` = supports, `[ ]` = does not.
+Each worker type is listed with short capability lines to avoid wide columns and improve readability on GitHub.
 
-+---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
-| Worker type               | Bounded concurrency  | Dynamic enqueue      | INotifyPropertyChanged        | Counters | Low-overhead |
-+---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
-| SemaphoreWorker           | [x]                  | [ ]                  | [x]                           | [x]      | [ ]          |
-| SemaphoreWorkerSlim       | [x]                  | [ ]                  | [ ]                           | [ ]      | [x]          |
-| ParallelWorker            | [ ]                  | [ ]                  | [x]                           | [x]      | [ ]          |
-| ParallelWorkerSlim        | [ ]                  | [ ]                  | [ ]                           | [ ]      | [x]          |
-| NeedleJobProcessor        | [x]                  | [x]                  | [x]                           | [x]      | [ ]          |
-| NeedleJobProcessorSlim    | [x]                  | [x]                  | [ ]                           | [ ]      | [x]          |
-+---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
+- **SemaphoreWorker**
+  - Bounded concurrency: Yes
+  - Dynamic enqueue: No
+  - `INotifyPropertyChanged`: Yes
+  - Counters: Yes
+  - Low-overhead: No
+
+- **SemaphoreWorkerSlim**
+  - Bounded concurrency: Yes
+  - Dynamic enqueue: No
+  - `INotifyPropertyChanged`: No
+  - Counters: No
+  - Low-overhead: Yes
+
+- **ParallelWorker**
+  - Bounded concurrency: No
+  - Dynamic enqueue: No
+  - `INotifyPropertyChanged`: Yes
+  - Counters: Yes
+  - Low-overhead: No
+
+- **ParallelWorkerSlim**
+  - Bounded concurrency: No
+  - Dynamic enqueue: No
+  - `INotifyPropertyChanged`: No
+  - Counters: No
+  - Low-overhead: Yes
+
+- **NeedleJobProcessor**
+  - Bounded concurrency: Yes
+  - Dynamic enqueue: Yes
+  - `INotifyPropertyChanged`: Yes
+  - Counters: Yes
+  - Low-overhead: No
+
+- **NeedleJobProcessorSlim**
+  - Bounded concurrency: Yes
+  - Dynamic enqueue: Yes
+  - `INotifyPropertyChanged`: No
+  - Counters: No
+  - Low-overhead: Yes
 
 ---
 
