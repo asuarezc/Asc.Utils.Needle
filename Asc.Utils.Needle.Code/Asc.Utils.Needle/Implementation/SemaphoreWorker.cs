@@ -213,15 +213,19 @@ internal class SemaphoreWorker : SemaphoreWorkerSlim, INeedleWorker
         }
     }
 
-    private string GetDebuggerDisplay() => ToString();
-
-    public override string ToString()
+    private string GetDebuggerDisplay()
     {
-        ThrowIfDisposed();
-
-        return string.Concat(
-            $"IsRunning = {IsRunning}, SuccessfullyCompletedJobsCount = {SuccessfullyCompletedJobsCount}, ",
-            $"FaultedJobsCount = {FaultedJobsCount}, TotalJobsCount = {TotalJobsCount}"
-        );
+        try
+        {
+            string baseInfo = base.ToString();
+            return $"{baseInfo}, TotalJobs={TotalJobsCount}, Success={SuccessfullyCompletedJobsCount}, Faulted={FaultedJobsCount}, IsRunning={IsRunning}";
+        }
+        catch
+        {
+            // Ensure debugger display never throws
+            return $"IsRunning = {IsRunning}, TotalJobs = {TotalJobsCount}, Success = {SuccessfullyCompletedJobsCount}, Faulted = {FaultedJobsCount}";
+        }
     }
+
+    public override string ToString() => GetDebuggerDisplay();
 }

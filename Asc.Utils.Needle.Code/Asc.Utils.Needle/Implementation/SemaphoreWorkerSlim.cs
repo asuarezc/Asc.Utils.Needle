@@ -269,14 +269,25 @@ internal class SemaphoreWorkerSlim : INeedleWorkerSlim
         }
     }
 
-    private string GetDebuggerDisplay() => ToString();
-
-    public override string ToString()
+    private string GetDebuggerDisplay()
     {
-        ThrowIfDisposed();
+        try
+        {
+            int pendingJobs = _jobs?.Count ?? 0;
+            int tasksCount = _tasks?.Count ?? 0;
+            bool cancelRequested = _cancellationTokenSource?.IsCancellationRequested ?? false;
+            bool disposed = _disposedValue;
 
-        return $"IsRunning = {_isRunning}";
+            return $"IsRunning={_isRunning}, OnJobFailedBehaviour={OnJobFailedBehaviour}, PendingJobs={pendingJobs}, Tasks={tasksCount}, CancelRequested={cancelRequested}, Disposed={disposed}";
+        }
+        catch
+        {
+            // Ensure debugger display never throws
+            return $"IsRunning={_isRunning}";
+        }
     }
+
+    public override string ToString() => GetDebuggerDisplay();
 
     #region IDisposable implementation
 

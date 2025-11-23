@@ -235,14 +235,35 @@ internal class ParallelWorkerSlim(OnJobFailedBehaviour onJobFailedBehaviour) : I
 
     #endregion
 
-    private string GetDebuggerDisplay() => ToString();
-
-    public override string ToString()
+    private string GetDebuggerDisplay()
     {
-        ThrowIfDisposed();
+        try
+        {
+            int pendingJobs = _jobs?.Count ?? 0;
+            int exceptionsCount = 0;
 
-        return $"IsRunning = {_isRunning}";
+            try
+            {
+                using (_lockerForExceptions.EnterScope())
+                {
+                    exceptionsCount = _exceptions?.Count ?? 0;
+                }
+            }
+            catch { } //Swallow exceptions to avoid debugger display issues
+
+            bool cancelRequested = _cancellationTokenSource?.IsCancellationRequested ?? false;
+            bool disposed = _disposedValue;
+
+            return $"IsRunning={_isRunning}, OnJobFailedBehaviour={OnJobFailedBehaviour}, PendingJobs={pendingJobs}, Exceptions={exceptionsCount}, CancelRequested={cancelRequested}, Disposed={disposed}";
+        }
+        catch
+        {
+            // Ensure debugger display never throws
+            return $"IsRunning={_isRunning}";
+        }
     }
+
+    public override string ToString() => GetDebuggerDisplay();
 
     #region IDisposable implementation
 

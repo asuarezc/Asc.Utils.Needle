@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
@@ -11,7 +11,7 @@
     <Deterministic>true</Deterministic>
     <PackageId>Asc.Utils.Needle</PackageId>
     <Title>Asc.Utils.Needle</Title>
-    <Version>3.0.0</Version>
+    <Version>3.0.1</Version>
     <Authors>Alberto Suárez Cánovas</Authors>
     <Company />
     <Product>Asc.Utils.Needle</Product>
@@ -23,7 +23,7 @@
     <RepositoryType>Git</RepositoryType>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageReleaseNotes>net9.0 version</PackageReleaseNotes>
+    <PackageReleaseNotes>net10.0 version</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

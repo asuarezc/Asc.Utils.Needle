@@ -1,7 +1,9 @@
-﻿using System.Threading.Channels;
+﻿using System.Diagnostics;
+using System.Threading.Channels;
 
 namespace Asc.Utils.Needle.Implementation;
 
+[DebuggerDisplay("{GetDebuggerDisplay(),nq}")]
 internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
 {
     private readonly Channel<Func<Task>> _channel;
@@ -13,6 +15,9 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
     private bool _isPaused = false;
     private bool _disposedValue;
     private int _stoppedInt;
+
+    // Track pending jobs for a useful debugger display
+    private int _pendingJobsCount;
 
     public NeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
     {
@@ -53,11 +58,14 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(job);
 
-        _channel.Writer.TryWrite(() =>
+        var written = _channel.Writer.TryWrite(() =>
         {
             job();
             return Task.CompletedTask;
         });
+
+        if (written)
+            Interlocked.Increment(ref _pendingJobsCount);
     }
 
     public void ProcessJob(Func<Task> job)
@@ -65,7 +73,10 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(job);
 
-        _channel.Writer.TryWrite(job);
+        var written = _channel.Writer.TryWrite(job);
+
+        if (written)
+            Interlocked.Increment(ref _pendingJobsCount);
     }
 
     public void Start()
@@ -121,7 +132,11 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
 
     private void ClearChannel()
     {
-        while (_channel.Reader.TryRead(out _)) { }
+        while (_channel.Reader.TryRead(out _))
+        {
+            // decrement pending count for items discarded
+            Interlocked.Decrement(ref _pendingJobsCount);
+        }
     }
 
     private void StartInternal()
@@ -179,6 +194,9 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
                 //Wait until an item is available or cancelled.
                 var job = await _channel.Reader.ReadAsync(stopToken).ConfigureAwait(false);
 
+                // adjust pending counter: we removed one item from the queue
+                Interlocked.Decrement(ref _pendingJobsCount);
+
                 try
                 {
                     await job().ConfigureAwait(false);
@@ -202,6 +220,16 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
             }
         }
     }
+
+    private string GetDebuggerDisplay()
+    {
+        int workersStarted = _workers.Count(it => it is not null);
+        int pending = Volatile.Read(ref _pendingJobsCount);
+
+        return $"Status={Status}, Threads={ThreadPoolSize}, WorkersStarted={workersStarted}, PendingJobs={pending}, CancelRequested={CancellationToken.IsCancellationRequested}, Disposed={Volatile.Read(ref _disposedValue)}";
+    }
+
+    public override string ToString() => GetDebuggerDisplay();
 
     #region IDisposable and IAsyncIDisposable Implementation
 
