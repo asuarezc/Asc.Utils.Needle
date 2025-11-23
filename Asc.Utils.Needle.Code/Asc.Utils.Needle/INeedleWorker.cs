@@ -3,44 +3,42 @@
 namespace Asc.Utils.Needle;
 
 /// <summary>
-/// I can do every thing that <see cref="INeedleWorkerSlim"/> does but I am more focused on feedback.
-/// So this is your choice for frontend applications since you can give feedback to users.
-/// All properties and methods of this interface, in all its implementations, are threadsafe
-/// with the exception of Dispose method.
-/// This interface has more than once implementation due to can be a semaphore or a parallel worker.
-/// You should use Needle singleton instance to choose what you need.
-/// Remember I am IDisposable. Please, use me inside a using statement or invoke Dispose method when necessary.
+/// Defines an interface for a worker that manages and monitors the execution of jobs, providing status information and
+/// fault notification.
 /// </summary>
+/// <remarks>Implementations of this interface support job tracking, status reporting, and error notification
+/// through events. The interface extends <see cref="INeedleWorkerSlim"/> for basic worker functionality and <see
+/// cref="INotifyPropertyChanged"/> to support property change notifications, enabling integration with data binding or
+/// UI frameworks.</remarks>
 public interface INeedleWorker : INeedleWorkerSlim, INotifyPropertyChanged
 {
     /// <summary>
-    /// Raised when a job fails so you can check exception before this worker RunAsync method throws an AggregateException
-    /// with the same exception instance inside its inners exceptions property.
-    /// Usefull also if you haved decided to invoke BeginRun instead awaiting RunAsync.
+    /// Occurs when a job encounters an unhandled exception during execution.
     /// </summary>
+    /// <remarks>
+    /// Subscribers can use this event to handle errors that occur within a job. The event provides
+    /// the exception that caused the fault, allowing for custom error handling or logging. This event is typically
+    /// raised when a job cannot complete successfully due to an unexpected error.
+    /// </remarks>
     event EventHandler<Exception> JobFaulted;
 
     /// <summary>
-    /// Returns true if worker is running, otherwise returns false.
-    /// You can subscribe to the PropertyChanged event to check if this property has changed its value.
+    /// Gets a value indicating whether the process or operation is currently running.
     /// </summary>
     bool IsRunning { get; }
 
     /// <summary>
-    /// Number of total added jobs: completed, running, pending, canceled or faulted.
-    /// You can subscribe to the PropertyChanged event to check if this property has changed its value.
+    /// Gets the total number of jobs currently managed by the system.
     /// </summary>
     int TotalJobsCount { get; }
 
     /// <summary>
-    /// Number of successfully completed jobs.
-    /// You can subscribe to the PropertyChanged event to check if this property has changed its value.
+    /// Gets the number of jobs that have completed successfully.
     /// </summary>
     int SuccessfullyCompletedJobsCount { get; }
 
     /// <summary>
-    /// Number of faulted jobs.
-    /// You can subscribe to the PropertyChanged event to check if this property has changed its value.
+    /// Gets the number of jobs that have entered a faulted state.
     /// </summary>
     int FaultedJobsCount { get; }
 }

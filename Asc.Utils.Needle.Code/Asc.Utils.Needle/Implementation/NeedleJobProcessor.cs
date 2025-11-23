@@ -10,9 +10,9 @@ namespace Asc.Utils.Needle.Implementation
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public int TotalSuccessfullyProcessedJobsCount => Volatile.Read(ref _totalSuccessfullyProcessedJobsCount);
-        public int TotalFaultedProcessedJobsCount => Volatile.Read(ref _totalFaultedProcessedJobsCount);
-        public int TotalAddedJobsCount => Volatile.Read(ref _totalAddedJobsCount);
+        public int SuccessfullyCompletedJobsCount => Volatile.Read(ref _totalSuccessfullyProcessedJobsCount);
+        public int FaultedJobsCount => Volatile.Read(ref _totalFaultedProcessedJobsCount);
+        public int TotalJobsCount => Volatile.Read(ref _totalAddedJobsCount);
 
         public NeedleJobProcessor(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
             : base(threadPoolSize, onJobFailedBehaviour, pauseEvent)
@@ -23,7 +23,7 @@ namespace Asc.Utils.Needle.Implementation
         private void OnJobFaultedInternal(object? sender, Exception ex)
         {
             Interlocked.Increment(ref _totalFaultedProcessedJobsCount);
-            OnPropertyChanged(nameof(TotalFaultedProcessedJobsCount));
+            OnPropertyChanged(nameof(FaultedJobsCount));
         }
 
         private void OnPropertyChanged(string propertyName)
@@ -41,7 +41,7 @@ namespace Asc.Utils.Needle.Implementation
             ArgumentNullException.ThrowIfNull(job);
 
             Interlocked.Increment(ref _totalAddedJobsCount);
-            OnPropertyChanged(nameof(TotalAddedJobsCount));
+            OnPropertyChanged(nameof(TotalJobsCount));
 
             Task wrappedJob()
             {
@@ -49,7 +49,7 @@ namespace Asc.Utils.Needle.Implementation
                 {
                     job();
                     Interlocked.Increment(ref _totalSuccessfullyProcessedJobsCount);
-                    OnPropertyChanged(nameof(TotalSuccessfullyProcessedJobsCount));
+                    OnPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
                     return Task.CompletedTask;
                 }
                 catch
@@ -67,7 +67,7 @@ namespace Asc.Utils.Needle.Implementation
             ArgumentNullException.ThrowIfNull(job);
 
             Interlocked.Increment(ref _totalAddedJobsCount);
-            OnPropertyChanged(nameof(TotalAddedJobsCount));
+            OnPropertyChanged(nameof(TotalJobsCount));
 
             async Task wrappedJobAsync()
             {
@@ -75,7 +75,7 @@ namespace Asc.Utils.Needle.Implementation
                 {
                     await job().ConfigureAwait(false);
                     Interlocked.Increment(ref _totalSuccessfullyProcessedJobsCount);
-                    OnPropertyChanged(nameof(TotalSuccessfullyProcessedJobsCount));
+                    OnPropertyChanged(nameof(SuccessfullyCompletedJobsCount));
                 }
                 catch
                 {

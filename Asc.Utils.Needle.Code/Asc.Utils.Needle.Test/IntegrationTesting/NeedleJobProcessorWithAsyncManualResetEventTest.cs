@@ -284,10 +284,10 @@ public class NeedleJobProcessorWithAsyncManualResetEventTest
 
         await WaitWithTimeout(jobDone.Task);
 
-        Assert.Equal(1, processor.TotalAddedJobsCount);
-        Assert.Equal(1, processor.TotalSuccessfullyProcessedJobsCount);
-        Assert.Contains(nameof(processor.TotalAddedJobsCount), changed);
-        Assert.Contains(nameof(processor.TotalSuccessfullyProcessedJobsCount), changed);
+        Assert.Equal(1, processor.TotalJobsCount);
+        Assert.Equal(1, processor.SuccessfullyCompletedJobsCount);
+        Assert.Contains(nameof(processor.TotalJobsCount), changed);
+        Assert.Contains(nameof(processor.SuccessfullyCompletedJobsCount), changed);
     }
 
     [Fact]
@@ -309,10 +309,10 @@ public class NeedleJobProcessorWithAsyncManualResetEventTest
 
         await WaitWithTimeout(jobDone.Task);
 
-        Assert.Equal(1, processor.TotalAddedJobsCount);
-        Assert.Equal(1, processor.TotalSuccessfullyProcessedJobsCount);
-        Assert.Contains(nameof(processor.TotalAddedJobsCount), changed);
-        Assert.Contains(nameof(processor.TotalSuccessfullyProcessedJobsCount), changed);
+        Assert.Equal(1, processor.TotalJobsCount);
+        Assert.Equal(1, processor.SuccessfullyCompletedJobsCount);
+        Assert.Contains(nameof(processor.TotalJobsCount), changed);
+        Assert.Contains(nameof(processor.SuccessfullyCompletedJobsCount), changed);
     }
 
     [Fact]
@@ -332,8 +332,8 @@ public class NeedleJobProcessorWithAsyncManualResetEventTest
 
         await WaitWithTimeout(faulted.Task);
 
-        Assert.Equal(1, processor.TotalFaultedProcessedJobsCount);
-        Assert.Contains(nameof(processor.TotalFaultedProcessedJobsCount), changed);
+        Assert.Equal(1, processor.FaultedJobsCount);
+        Assert.Contains(nameof(processor.FaultedJobsCount), changed);
     }
 
     [Fact]

@@ -1,13 +1,19 @@
 ﻿namespace Asc.Utils.Needle;
 
 /// <summary>
-/// I am a INeedleWorker and INeedleWorkerSlim factory, so I am a Pincushion. Do  you get the joke?
-/// First of all, decide if you need a semaphore or a parallel worker. Decide if you need a slim implementation
-/// or a full one, then invoke the corresponding method. Slim implementations are performance focused but you
-/// cannot get information about progress or pretty much anything else. Otherwise a full implementation has
-/// more properties and events so you can use it, for example, to manage a progress bar.
-/// See <see cref="INeedleWorkerSlim"/> and <seealso cref="INeedleWorker"/> to get more information about.
+/// Defines a contract for creating and retrieving various types of job workers and processors, including
+/// semaphore-based, parallel, and job processors, with configurable concurrency and job failure handling
+/// behaviors.
 /// </summary>
+/// <remarks>
+/// The IPincushion interface provides factory methods for obtaining worker and processor instances
+/// tailored to different concurrency models and job management strategies. It supports customization of thread pool
+/// sizes and specifies how job failures are handled, allowing consumers to select appropriate behaviors for their
+/// workload. Implementations are expected to enforce parameter constraints, such as requiring positive thread counts,
+/// and to document any exceptions that may be thrown for invalid arguments. This interface is intended for advanced job
+/// scheduling and parallel processing scenarios where fine-grained control over execution and failure policies is
+/// required.
+/// </remarks>
 public interface IPincushion
 {
     #region Semaphores
@@ -48,13 +54,13 @@ public interface IPincushion
 
     /// <summary>
     /// Gets a semaphore worker implementation with Environment.ProcessorCount available threads.
-    /// By default, <see cref="INeedleWorker.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
+    /// By default, <see cref="INeedleWorkerSlim.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     INeedleWorker GetSemaphoreWorker();
 
     /// <summary>
     /// Gets a semaphore worker implementation with a certain amount of available threads.
-    /// By default, <see cref="INeedleWorker.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
+    /// By default, <see cref="INeedleWorkerSlim.OnJobFailedBehaviour"/> value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
     /// </summary>
     /// <param name="maxThreads">Number of threads to use with semaphore.</param>
     INeedleWorker GetSemaphoreWorker(int maxThreads);

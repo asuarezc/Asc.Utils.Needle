@@ -1,67 +1,75 @@
 ﻿namespace Asc.Utils.Needle;
 
 /// <summary>
-/// The simplest and most perfomance focused tool to running jobs using multithreading.
-/// All properties and methods of this interface, in all its implementations, are threadsafe
-/// with the exception of Dispose method.
-/// This interface has more than once implementation due to can be a semaphore or a parallel worker.
-/// You should use Needle singleton instance to choose what you need.
-/// Remember I am IDisposable. Please, use me inside a using statement or invoke Dispose method when necessary. 
-/// Maybe by checking this interface you think you need more features. In that case check <see cref="INeedleWorker"/>
+/// Defines a contract for a lightweight worker that schedules, manages, and executes jobs with support for cooperative
+/// cancellation and job failure handling.
 /// </summary>
+/// <remarks>
+/// Implementations of this interface allow clients to add synchronous or asynchronous jobs, control
+/// execution, and observe or request cancellation. The interface provides mechanisms to handle job failures according
+/// to a specified behavior and to monitor cancellation requests via events and tokens. It is intended for scenarios
+/// where lightweight, programmatic job scheduling and cancellation are required.
+/// </remarks>
 public interface INeedleWorkerSlim : IDisposable
 {
     /// <summary>
-    /// Raised when worker execution has been canceled, either by a cancellation request or in the case that
-    /// CancelPendingJobsIfAnyOtherFails is true and some job fails.
+    /// Occurs when the operation is canceled.
     /// </summary>
+    /// <remarks>
+    /// Subscribe to this event to be notified when a cancellation request has been made. Handlers
+    /// are invoked on the thread that triggers the cancellation.
+    /// </remarks>
     event EventHandler Canceled;
 
     /// <summary>
-    /// Gets the token that can be used to observe cancellation by added jobs.
-    /// <see cref="CancellationToken.IsCancellationRequested"/> will be true when any job fails and when <see cref="OnJobFailedBehaviour"/> is set to <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
-    /// Also, it will be true when <see cref="Cancel"/> method is invoked.
+    /// Gets the <see cref="CancellationToken"/> used to observe cancellation requests for the current operation.
     /// </summary>
+    /// <remarks>
+    /// Use this token to monitor for cancellation and respond appropriately in long-running or
+    /// asynchronous operations. Observing the token allows cooperative cancellation between the caller and the
+    /// operation.
+    /// </remarks>
     CancellationToken CancellationToken { get; }
 
     /// <summary>
-    /// If value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/> and any job fails, pending jobs that are not currently
-    /// in progress will be canceled. On the other hand, if value is <see cref="OnJobFailedBehaviour.ContinueRunningPendingJobs"/>,
-    /// pending jobs will continue running even if any job fails.
-    /// Default value is <see cref="OnJobFailedBehaviour.CancelPendingJobs"/>.
+    /// Gets the behavior that determines how the system responds when a job fails.
     /// </summary>
     OnJobFailedBehaviour OnJobFailedBehaviour { get; }
 
     /// <summary>
-    /// Request cancellation to cancel pending jobs that are not currently in progress.
-    /// So do not assume that when this method finishes executing the process will have been canceled.
-    /// For that purpose subscribe Cancelled event.
+    /// Requests cancellation of the current operation, if it is in progress.
     /// </summary>
-    /// <exception cref="InvalidOperationException">If worker is not running or if a cancellation has been requested</exception>
+    /// <remarks>
+    /// Calling this method signals that the ongoing operation should be stopped as soon as possible.
+    /// The exact timing and effect of cancellation depend on the implementation. After calling this method, the
+    /// operation may complete, partially complete, or be rolled back, depending on the context.
+    /// </remarks>
+    /// <exception>
+    /// Throws <see cref="InvalidOperationException"/> if worker is not running or if a previous cancellation request is in progress.
+    /// </exception>
     void Cancel();
 
     /// <summary>
-    /// Adds a synchronous job.
+    /// Adds a job to the scheduler for execution.
     /// </summary>
-    /// <param name="job">Job to run</param>
+    /// <param name="job">The action to execute as a job. Cannot be null.</param>
     /// <exception cref="ArgumentNullException">If <paramref name="job"/> is null.</exception>
     /// <exception cref="InvalidOperationException">If worker is running.</exception>
     void AddJob(Action job);
 
     /// <summary>
-    /// Adds an asynchronous job.
+    /// Adds an asynchronous job to the processing queue.
     /// </summary>
-    /// <param name="job">Job to run</param>
+    /// <param name="job">A delegate that represents the asynchronous job to be executed. Cannot be null.</param>
     /// <exception cref="ArgumentNullException">If <paramref name="job"/> is null.</exception>
     /// <exception cref="InvalidOperationException">If worker is running.</exception>
     void AddJob(Func<Task> job);
 
     /// <summary>
-    /// Once all jobs have been completed, can throw AggregateException if any job have failed.
-    /// Also at that time you can dispose this instance (by the end of using statement or manually invoking Dispose method)
-    /// or you can add more jobs to invoke this method again to run those new jobs.
+    /// Asynchronously executes the operation.
     /// </summary>
-    /// <exception cref="InvalidOperationException">If there is not any job to run or if it is already running.</exception>
-    /// <exception cref="AggregateException">If any job fails</exception>
+    /// <returns>A task that represents the asynchronous execution operation.</returns>
+    /// <exception>Throws <see cref="InvalidOperationException"/> if no jobs have been added to run.</exception>
+    /// <exception>Thorws <see cref="AggregateException"/> if any job fails.</exception>
     Task RunAsync();
 }
