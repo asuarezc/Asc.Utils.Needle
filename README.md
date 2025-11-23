@@ -39,6 +39,21 @@ Slim vs non-slim
 - Slim versions prioritize throughput and low allocations and offer a minimal API surface.
 - Non-slim versions add observability (properties, events, `INotifyPropertyChanged`) and are useful for UIs or monitoring scenarios.
 
+### Quick capability summary
+
+Below is a compact, at-a-glance summary of what each worker type provides. `[x]` = supports, `[ ]` = does not.
+
++---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
+| Worker type               | Bounded concurrency  | Dynamic enqueue      | INotifyPropertyChanged        | Counters | Low-overhead |
++---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
+| SemaphoreWorker           | [x]                  | [ ]                  | [x]                           | [x]      | [ ]          |
+| SemaphoreWorkerSlim       | [x]                  | [ ]                  | [ ]                           | [ ]      | [x]          |
+| ParallelWorker            | [ ]                  | [ ]                  | [x]                           | [x]      | [ ]          |
+| ParallelWorkerSlim        | [ ]                  | [ ]                  | [ ]                           | [ ]      | [x]          |
+| NeedleJobProcessor        | [x]                  | [x]                  | [x]                           | [x]      | [ ]          |
+| NeedleJobProcessorSlim    | [x]                  | [x]                  | [ ]                           | [ ]      | [x]          |
++---------------------------+----------------------+----------------------+-------------------------------+----------+--------------+
+
 ---
 
 ## Installation
