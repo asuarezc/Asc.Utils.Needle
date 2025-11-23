@@ -1,140 +1,200 @@
 # Asc.Utils.Needle
-Utility to simplify multithreading or background operations. Through a simple factory pattern,
-you can obtain a helper that works as a semaphore or simply performs parallel execution.
 
-All provided utilities implement the same interfaces, allowing you to change the implementation
-at runtime, use dependency injection, register the implementations as services in an IoC manager
-or perform mocks for unit testing.
+Asc.Utils.Needle is a small, focused library that simplifies multithreading and background work.
+Using a lightweight factory (`Pincushion.Instance`) you can obtain workers that run jobs using well-known
+concurrency patterns: semaphore-based workers, parallel workers and reusable job processors.
 
-For backend applications or applications that simply do not require user feedbackg,
-there are slim versions of both utilities. There slim versions are performance oriented.
+Parallel and semaphore workers implementations share the same interfaces so you can swap implementations,
+mock for tests, or integrate them into DI containers.
 
-For frontend applications, you have properties that report the execution status, the total
-number of tasks to be executed, the total number of executed tasks (failed or not), and other
-information to give feedback to the user in the form of a progress bar or the desired layout.
-You do not need to actively check for property values since you can subscribe PropertyChanged
-event.
+Advantages over hand-rolling concurrency
 
-All available utilities support runtime cancellation, provide a cancellation token, and support
-both synchronous and asynchronous tasks. You can decide whether pending tasks should be
-cancelled once a previous task has failed or whether the error should be ignored and the
-remaining tasks completed. If one or more tasks in the batch fail, you can catch an
-AggregateException with all exceptions thrown during a multithreaded execution.
+- Unified, well-tested abstractions: no more repeating the same cancellation, synchronization anderror-aggregation code.
+- Error handling: job exceptions are collected and surfaced as an `AggregateException` so you can handle failures centrally.
+- Cancellation and observability: workers expose a `CancellationToken`, events and/or `INotifyPropertyChanged` (non-slim variants) to observe progress or cancellation.
+- Testability: interfaces make it easy to mock behaviour in unit tests.
+- Fewer subtle bugs: the library handles thread-safety, worker lifecycle and resource disposal for you.
 
-## When to use a sempahore or parallel execution?
-The answer is simple: run performance tests. It's the only way to know for sure.
-However, as a general rule, parallel execution is better when the number of tasks does not
-exceed the number of processors available on the device you are running this utility on.
-For all other cases, a semaphore is better. You should also consider whether your app will be
-the only thing running on a given device or whether it shares resources with other apps.
+---
+
+## Which worker to use
+
+Pick the worker that matches your workload and observability needs:
+
+- Semaphore-style workers (`SemaphoreWorker`, `SemaphoreWorkerSlim`)
+  - Limit the number of concurrent jobs with a semaphore. Ideal for I/O-heavy workloads (HTTP calls, database requests) where you want to bound concurrency.
+  - `SemaphoreWorkerSlim` is the lightweight, high-performance variant (minimal API), suitable for backend or batch scenarios.
+  - `SemaphoreWorker` (non-slim) exposes progress counters and `INotifyPropertyChanged` for UI or diagnostics.
+
+- Parallel workers (`ParallelWorker`, `ParallelWorkerSlim`)
+  - Execute jobs in parallel without an explicit concurrency limit. Good for CPU-light tasks where maximum parallelism is desired.
+  - `ParallelWorkerSlim` = minimal API; `ParallelWorker` = full API with counters and events.
+
+- Job processors (`NeedleJobProcessor`, `NeedleJobProcessorSlim`)
+  - Long-lived processors with an internal thread pool that accept jobs dynamically. Use them when jobs are produced continuously and you want a reusable pool.
+  - `Slim` = minimal, low-overhead; non-slim = additional counters and `PropertyChanged` notifications.
+
+Slim vs non-slim
+
+- Slim versions prioritize throughput and low allocations and offer a minimal API surface.
+- Non-slim versions add observability (properties, events, `INotifyPropertyChanged`) and are useful for UIs or monitoring scenarios.
+
+---
 
 ## Installation
-```sh
+
+Install from NuGet (dotnet CLI):
+
+```bash
+dotnet add package Asc.Utils.Needle
+```
+
+Or using the Package Manager Console:
+
+```powershell
 Install-Package Asc.Utils.Needle
 ```
-## Usage
-### Simply add jobs. That's all!
-```C#
-  private async Task DoTheWorkAsync(IEnumerable<string> urls)
-  {
-    using INeedleWorkerSlim worker = Pincushion.Instance.GetSemaphoreWorkerSlim(maxThreads: 5);
 
-    foreach (string url in urls)
-      worker.AddJob(async () => await DoHttpRequestAsync(url));
+You can also reference the package in your csproj:
 
-    try
-    {
-      await worker.RunAsync();
-    }
-    catch (AggregateException aggregateException) //When one or more of your http request fails
-    {
-        //Your code to manage aggregateException. Check for InnerExceptions property.
-    }
-    catch (Exception ex) //When an unhandled exception has been thrown
-    {
-        //Your code to manage ex
-    }
-  }
-
-  private async Task DoHttpRequestAsync(string url)
-  {
-    //Your http request code
-  }
+```xml
+<PackageReference Include="Asc.Utils.Needle" Version="2.1.0" />
 ```
 
-### Cancel and CancellationToken example
-```C#
-  private void BeginDoTheWork(IEnumerable<string> urls, TimeSpan timeout)
-  {
-    bool wasCanceled = false;
-    INeedleWorker worker = Pincushion.Instance.GetParallelWorker();
+---
 
-    void OnCanceled(object? sender, EventArgs e)
-    {
-      wasCanceled = true;
-      Console.WriteLine("Timeout!");
-      worker.Canceled -= OnCanceled;
-    }
+## Examples
 
-    worker.Canceled += OnCanceled;
+All examples use the `Pincushion.Instance` factory to obtain workers.
 
-    foreach (string url in urls)
-      worker.AddJob(async () => await DoHttpRequestAsync(url, worker.CancellationToken));
+- Semaphore worker (slim) — bounded concurrency (backend example):
 
-    Task.Run(async () => {
-      await worker.RunAsync();
+```csharp
+using Asc.Utils.Needle;
 
-      if (!wasCanceled)
-      {
-        Console.WriteLine("Completed!");
-      }
+using var worker = Pincushion.Instance.GetSemaphoreWorkerSlim(maxThreads: 5);
 
-      worker.Dispose();
-    });
+foreach (var url in urls)
+    worker.AddJob(async () => await HttpGetAsync(url));
 
-    Task.Run(async () => {
-      await Task.Delay(timeout);
-
-      if (worker != null && worker.IsRunning)
-        worker.Cancel();
-    });
-  }
-
-  private async Task DoHttpRequestAsync(string url, CancellationToken token)
-  {
-    //some code
-    
-    if (token.IsCancellationRequested)
-      return;
-
-    //some code
-  }
+try
+{
+    await worker.RunAsync();
+}
+catch (AggregateException ae)
+{
+    // examine ae.InnerExceptions
+}
 ```
 
-### Check progress to update UI
-```C#
-  string statusText;
-  INeedleWorker worker = Pincushion.Instance.GetSemaphoreWorker(maxThreads: 2);
-  
-  worker.AddJob(Job1);
-  worker.AddJob(Job2);
-  worker.AddJob(Job3);
-  worker.AddJob(Job4);
-  
-  worker.PropertyChanged += (object sender, PropertyChangedEventArgs e) =>
-  {
-    if (e is null || string.IsNullOrEmpty(e.PropertyName))
-      return;
-  
-    if (e.PropertyName == nameof(INeedleWorker.CompletedJobsCount))
-      statusText = $"Completed {worker.CompletedJobsCount} of {worker.TotalJobsCount} jobs";
-  };
-  
-  await worker.RunAsync();
+- Semaphore worker (full) — with progress notifications (frontend example):
+
+```csharp
+using Asc.Utils.Needle;
+
+using var worker = Pincushion.Instance.GetSemaphoreWorker(maxThreads: 5);
+
+worker.PropertyChanged += (_, e) =>
+{
+    var prop = worker.GetType().GetProperty(e.PropertyName);
+    var value = prop is not null ? prop.GetValue(worker) : null;
+    Console.WriteLine($"{e.PropertyName} = {value}");
+};
+
+worker.AddJob(() => DoSyncWork());
+worker.AddJob(async () => await DoAnotherWorkAsync());
+
+await worker.RunAsync();
 ```
 
-## More info
-See INeedleWorker and INeedleWorkerSlim interfaces to get more info about how to use this utility
+- Parallel worker (slim):
 
-## Icon from Flaticon:
+```csharp
+using Asc.Utils.Needle;
+
+using var worker = Pincushion.Instance.GetParallelWorkerSlim();
+
+for (int i = 0; i < 100; i++)
+    worker.AddJob(async () => await DoSmallAsyncWork());
+
+await worker.RunAsync();
+```
+
+- Parallel worker (full):
+
+```csharp
+using Asc.Utils.Needle;
+
+using var worker = Pincushion.Instance.GetParallelWorker();
+
+worker.PropertyChanged += (_, e) =>
+{
+    var prop = worker.GetType().GetProperty(e.PropertyName);
+    var value = prop is not null ? prop.GetValue(worker) : null;
+    Console.WriteLine($"{e.PropertyName} = {value}");
+};
+
+worker.AddJob(() => DoSyncWork());
+
+await worker.RunAsync();
+```
+
+- NeedleJobProcessorSlim — dynamic job stream with internal pool:
+
+```csharp
+using Asc.Utils.Needle;
+
+using var processor = Pincushion.Instance.GetJobProcessorSlim(threadPoolSize: Environment.ProcessorCount);
+processor.Start();
+
+processor.ProcessJob(async () => await DoBackgroundWork());
+processor.ProcessJob(SomeVoidMethodToRun);
+
+processor.Pause();
+
+// do some other stuff in between
+
+processor.Resume();
+
+// stop when done
+await processor.DisposeAsync();
+```
+
+- NeedleJobProcessor (full) — same as above but with counters and property notifications:
+
+```csharp
+using Asc.Utils.Needle;
+
+using var processor = Pincushion.Instance.GetJobProcessor(threadPoolSize: 4);
+
+processor.PropertyChanged += (_, e) =>
+{
+    var prop = processor.GetType().GetProperty(e.PropertyName);
+    var value = prop is not null ? prop.GetValue(processor) : null;
+    Console.WriteLine($"{e.PropertyName} = {value}");
+};
+
+processor.Start();
+processor.ProcessJob(() => Task.Delay(100));
+
+await processor.DisposeAsync();
+```
+
+---
+
+## More information
+
+Read the public interfaces for details on behavior and guarantees:
+
+- `INeedleWorkerSlim` / `INeedleWorker`
+- `INeedleJobProcessorSlim` / `INeedleJobProcessor`
+
+They document cancellation semantics, error aggregation and lifecycle constraints.
+
+---
+
+## Icon attribution
+
+Icon from Flaticon:
+
 <a href="https://www.flaticon.com/free-icons/sew" title="sew icons">Sew icons created by Pixel perfect - Flaticon</a>
