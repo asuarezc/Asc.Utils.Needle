@@ -3,7 +3,7 @@
 namespace Asc.Utils.Needle.Benchmark
 {
     [MemoryDiagnoser]
-    public class SemaphoreWorkerSlimBenchmark
+    public class Benchmark
     {
         private INeedleWorkerSlim? semaphoreWorker;
         private INeedleWorkerSlim? parallelWorker;
