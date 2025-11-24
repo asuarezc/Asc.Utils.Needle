@@ -243,4 +243,4 @@ They document cancellation semantics, error aggregation and lifecycle constraint
 
 Icon from Flaticon:
 
-<a href="https://www.flaticon.com/free-icons/sew" title="sew icons">Sew icons created by Pixel perfect - Flaticon</a>
+<a href="https://www.flaticon.com/free-icons/" title="sew icons">See icons created by Pixel perfect - Flaticon</a>
