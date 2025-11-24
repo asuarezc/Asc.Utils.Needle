@@ -32,14 +32,14 @@ Pick the worker that matches your workload and observability needs:
 
 - Job processors (`NeedleJobProcessor`, `NeedleJobProcessorSlim`)
   - Long-lived processors with an internal thread pool that accept jobs dynamically. Use them when jobs are produced continuously and you want a reusable pool.
-  - `Slim` = minimal, low-overhead; non-slim = additional counters and `PropertyChanged` notifications.
+  - `NeedleJobProcessorSlim` = minimal, low-overhead; non-slim = additional counters and `PropertyChanged` notifications.
 
 Slim vs non-slim
 
 - Slim versions prioritize throughput and low allocations and offer a minimal API surface.
 - Non-slim versions add observability (properties, events, `INotifyPropertyChanged`) and are useful for UIs or monitoring scenarios.
 
-### Quick capability summary (compact, GitHub-friendly)
+### Quick capability summary
 
 Each worker type is listed with short capability lines to avoid wide columns and improve readability on GitHub.
 
