@@ -4,7 +4,7 @@ using System.Threading.Channels;
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay("{GetDebuggerDisplay(),nq}")]
-internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
+internal class JobProcessorSlim : INeedleJobProcessorSlim
 {
     private readonly Channel<Func<Task>> _channel;
     private readonly Task[] _workers;
@@ -19,7 +19,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
     // Track pending jobs for a useful debugger display
     private int _pendingJobsCount;
 
-    public NeedleJobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
+    public JobProcessorSlim(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
     {
         ThreadPoolSize = threadPoolSize;
         OnJobFailedBehaviour = onJobFailedBehaviour;
@@ -127,7 +127,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
 
     protected void ThrowIfDisposed()
     {
-        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposedValue), nameof(NeedleJobProcessorSlim));
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposedValue), nameof(JobProcessorSlim));
     }
 
     private void ClearChannel()
@@ -192,7 +192,7 @@ internal class NeedleJobProcessorSlim : INeedleJobProcessorSlim
             try
             {
                 //Wait until an item is available or cancelled.
-                var job = await _channel.Reader.ReadAsync(stopToken).ConfigureAwait(false);
+                Func<Task> job = await _channel.Reader.ReadAsync(stopToken).ConfigureAwait(false);
 
                 // adjust pending counter: we removed one item from the queue
                 Interlocked.Decrement(ref _pendingJobsCount);

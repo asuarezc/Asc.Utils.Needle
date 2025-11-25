@@ -1,12 +1,10 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Asc.Utils.Needle.Implementation;
 
 [DebuggerDisplay("{GetDebuggerDisplay(),nq}")]
-internal class NeedleJobProcessor : NeedleJobProcessorSlim, INeedleJobProcessor
+internal class JobProcessor : JobProcessorSlim, INeedleJobProcessor
 {
     private int _totalSuccessfullyProcessedJobsCount;
     private int _totalFaultedProcessedJobsCount;
@@ -18,7 +16,7 @@ internal class NeedleJobProcessor : NeedleJobProcessorSlim, INeedleJobProcessor
     public int FaultedJobsCount => Volatile.Read(ref _totalFaultedProcessedJobsCount);
     public int TotalJobsCount => Volatile.Read(ref _totalAddedJobsCount);
 
-    public NeedleJobProcessor(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
+    public JobProcessor(int threadPoolSize, OnJobFailedBehaviour onJobFailedBehaviour, IAsyncManualResetEvent pauseEvent)
         : base(threadPoolSize, onJobFailedBehaviour, pauseEvent)
     {
         JobFaulted += OnJobFaultedInternal;

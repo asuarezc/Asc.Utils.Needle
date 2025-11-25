@@ -79,7 +79,7 @@ public sealed class Pincushion : IPincushion
 
     public INeedleJobProcessorSlim GetNeedleJobProcessorSlim()
     {
-        return new NeedleJobProcessorSlim(
+        return new JobProcessorSlim(
             threadPoolSize: Environment.ProcessorCount,
             onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs,
             pauseEvent: new AsyncManualResetEvent(initialState: false)
@@ -91,12 +91,12 @@ public sealed class Pincushion : IPincushion
         if (threadPoolSize < 0)
             throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
 
-        return new NeedleJobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs, new AsyncManualResetEvent(initialState: false));
+        return new JobProcessorSlim(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs, new AsyncManualResetEvent(initialState: false));
     }
 
     public INeedleJobProcessorSlim GetNeedleJobProcessorSlim(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new NeedleJobProcessorSlim(
+        return new JobProcessorSlim(
             threadPoolSize: Environment.ProcessorCount,
             onJobFailedBehaviour: onJobFailedBehaviour,
             pauseEvent: new AsyncManualResetEvent(initialState: false)
@@ -108,12 +108,12 @@ public sealed class Pincushion : IPincushion
         if (threadPoolSize < 0)
             throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
 
-        return new NeedleJobProcessorSlim(threadPoolSize, onJobFailedBehaviour, new AsyncManualResetEvent(initialState: false));
+        return new JobProcessorSlim(threadPoolSize, onJobFailedBehaviour, new AsyncManualResetEvent(initialState: false));
     }
 
     public INeedleJobProcessor GetNeedleJobProcessor()
     {
-        return new NeedleJobProcessor(
+        return new JobProcessor(
             threadPoolSize: Environment.ProcessorCount,
             onJobFailedBehaviour: OnJobFailedBehaviour.ContinueRunningPendingJobs,
             pauseEvent: new AsyncManualResetEvent(initialState: false)
@@ -125,12 +125,12 @@ public sealed class Pincushion : IPincushion
         if (threadPoolSize < 0)
             throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
 
-        return new NeedleJobProcessor(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs, new AsyncManualResetEvent(initialState: false));
+        return new JobProcessor(threadPoolSize, OnJobFailedBehaviour.ContinueRunningPendingJobs, new AsyncManualResetEvent(initialState: false));
     }
 
     public INeedleJobProcessor GetNeedleJobProcessor(OnJobFailedBehaviour onJobFailedBehaviour)
     {
-        return new NeedleJobProcessor(
+        return new JobProcessor(
             threadPoolSize: Environment.ProcessorCount,
             onJobFailedBehaviour: onJobFailedBehaviour,
             pauseEvent: new AsyncManualResetEvent(initialState: false)
@@ -142,6 +142,6 @@ public sealed class Pincushion : IPincushion
         if (threadPoolSize < 0)
             throw new ArgumentOutOfRangeException(nameof(threadPoolSize), "Thread pool size must be non-negative.");
 
-        return new NeedleJobProcessor(threadPoolSize, onJobFailedBehaviour, new AsyncManualResetEvent(initialState: false));
+        return new JobProcessor(threadPoolSize, onJobFailedBehaviour, new AsyncManualResetEvent(initialState: false));
     }
 }

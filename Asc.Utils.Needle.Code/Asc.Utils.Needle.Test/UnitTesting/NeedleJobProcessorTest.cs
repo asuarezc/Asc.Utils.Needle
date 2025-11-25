@@ -19,7 +19,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Reset());
         pauseMock.Setup(p => p.WaitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
 
         Assert.Equal(NeedleJobProcessorStatus.Stopped, processor.Status);
 
@@ -42,7 +42,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         processor.Start();
 
         var tcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -63,7 +63,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
 
         processor.Start();
 
@@ -115,7 +115,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         processor.Start();
 
         var tcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -141,7 +141,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.CancelPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.CancelPendingJobs, pauseMock.Object);
         processor.Start();
 
         var faultTcs = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -193,7 +193,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         processor.Start();
         processor.Dispose();
 
@@ -211,7 +211,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         processor.Start();
 
         // enqueue a job that completes after a short delay
@@ -241,7 +241,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         var changed = new ConcurrentBag<string>();
         processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
 
@@ -268,7 +268,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         var changed = new ConcurrentBag<string>();
         processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
 
@@ -299,7 +299,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Set()).Callback(() => tcsWait.TrySetResult(true));
         pauseMock.Setup(p => p.Reset()).Callback(() => tcsWait = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously));
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         var changed = new ConcurrentBag<string>();
         processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
 
@@ -324,7 +324,7 @@ public class NeedleJobProcessorTest
         pauseMock.Setup(p => p.Reset());
         pauseMock.Setup(p => p.WaitAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
 
-        using var processor = new NeedleJobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
+        using var processor = new JobProcessor(1, OnJobFailedBehaviour.ContinueRunningPendingJobs, pauseMock.Object);
         var changed = new List<string>();
         processor.PropertyChanged += (_, e) => changed.Add(e.PropertyName!);
 
